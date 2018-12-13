@@ -17,15 +17,15 @@ _file extension_:* "png" <br/><br/>
 
 ##### Directory Structure:
 - raw (downloaded src_frames from LazyCache with the above mentioned src_frame_name format) <br/><br/>
-- amphipode
+- amphipod
     - annotations (json files containing the manually segmented annotations using 'labelme' on the raw frames) <br/><br/>
-    
-    - amphipode_segmentation
+
+    - amphipod_segmentation
         - train
             - patches
             - masks
 
-    - amphipode_classification (class_labels: "amphipod", "nonamphipod")
+    - amphipod_classification (class_labels: "amphipod", "nonamphipod")
         - train
             - patches
             - annotation_file ("patch_name,class_label")
