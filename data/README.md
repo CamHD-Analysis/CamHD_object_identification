@@ -31,7 +31,7 @@ _file extension_:* "png" <br/><br/>
 
     - testbed (randomly sampled frames from several videos across days)
         - testbed_src_frame_names
-        - analysis_output (debug_mode)
+        - analysis_output _(debug_mode)_
             - raw_stitched_mask
             - postprocessed_mask
             - marked_frame (src frame on which the predicted bounding boxes are drawn)
