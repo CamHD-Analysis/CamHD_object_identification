@@ -13,7 +13,7 @@ _sample src_frame_name (VideoName_Frame)_: "CAMHDA301-20180711T001500_1274.png" 
 _file extension_:* "png" <br/><br/>
 
 - Object Types:
-    - amphipode (patch size: 128x128 (_TODO: finalize the patch size_))
+    - amphipod (patch size: 128x128 (_TODO: finalize the patch size_))
 
 ##### Directory Structure:
 - raw (downloaded src_frames from LazyCache with the above mentioned src_frame_name format) <br/><br/>
