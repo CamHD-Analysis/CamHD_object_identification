@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument('--tensorboard-logdir',
                         help="The path to the Tensorboard log directory. If not provided, tensorboard logs will not be written.")
     parser.add_argument('--image-ext',
+                        dest="img_ext",
                         default='png',
                         help="The image file extension. Default: png.")
 
