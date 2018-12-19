@@ -106,7 +106,7 @@ def sample_random_frames(args):
 
         for scene in args.scenes:
             output_path = os.path.join(args.output, scene)
-            os.makedirs(output_path)
+            os.makedirs(output_path, exist_ok=True)
             _get_random_frames(regions_file, output_path, args.qt, args.img_ext, scene, args.prob)
 
 
