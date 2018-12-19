@@ -21,7 +21,6 @@ python code/utils/get_patches_masks.py
 """
 
 from skimage.measure import label, regionprops
-from skimage.draw import polygon
 
 import argparse
 import cv2
@@ -129,12 +128,15 @@ def get_patches_masks(anno_work_dir, obj_label, output_dir, backup_dir_raw, back
         frame_img = cv2.imread(frame_path)
         frame_img = frame_img.astype(np.uint8)
         frame_mask = np.zeros(shape=(frame_img.shape[0], frame_img.shape[1]), dtype=np.uint8)
+
+        cur_label_anno_count = 0
         for anno in annos:
             if anno["label"] != obj_label:
                 continue
 
             contours = np.asarray(anno["points"])
             cv2.fillPoly(frame_mask, pts=[contours], color=(255, 255, 255))
+            cur_label_anno_count += 1
 
         # Get connected components and extract patch and mask.
         frame_mask_bin = frame_mask > 0
@@ -142,7 +144,7 @@ def get_patches_masks(anno_work_dir, obj_label, output_dir, backup_dir_raw, back
 
         regions = regionprops(labeled_mask)
 
-        if len(regions) != len(annos):
+        if len(regions) != cur_label_anno_count:
             raise ValueError("The number of regions is not equal to number of annotations: %s" % anno_path)
 
         for region in regions:
