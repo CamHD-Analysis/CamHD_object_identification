@@ -54,7 +54,7 @@ _file extension_:* "png" <br/><br/>
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
     "scene_tag": "d5A_p1_z1",
-    "frame_res": (1920, 1080),
+    "frame_res": "[1920,1080]",
     "counts": {
         "amphipod": 4,
         "crab": 2,
