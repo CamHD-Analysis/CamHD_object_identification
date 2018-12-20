@@ -17,8 +17,8 @@ _file extension_:* "png" <br/><br/>
     - star (patch size: 256x256)
 
 ##### Directory Structure:
-- raw (downloaded src_frames from LazyCache with the above mentioned src_frame_name format) <br/><br/>
-- annotations (json files containing the manually segmented annotations using 'labelme' on the raw frames) <br/><br/>
+- raw (Downloaded src_frames from LazyCache with the above mentioned src_frame_name format) <br/><br/>
+- annotations (Json files containing the manually segmented annotations using 'labelme' on the raw frames) <br/><br/>
 - amphipod _(Similar structure for labels: amphipod, star)_
     - amphipod_segmentation (Separate train and validation (val) directories for each Set of labeled data.)
         - set_1_train
