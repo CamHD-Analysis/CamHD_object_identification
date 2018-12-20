@@ -13,19 +13,28 @@ _sample src_frame_name (VideoName_Frame)_: "CAMHDA301-20180711T001500_1274.png" 
 _file extension_:* "png" <br/><br/>
 
 - Object Types:
-    - amphipod (patch size: 128x128 (_TODO: finalize the patch size_))
+    - amphipod (patch size: 256x256)
+    - star (patch size: 256x256)
 
 ##### Directory Structure:
 - raw (downloaded src_frames from LazyCache with the above mentioned src_frame_name format) <br/><br/>
 - annotations (json files containing the manually segmented annotations using 'labelme' on the raw frames) <br/><br/>
-- amphipod _(Similar structure for labels: amphipod, star, crab etc.)_
-    - amphipod_segmentation
-        - train
+- amphipod _(Similar structure for labels: amphipod, star)_
+    - amphipod_segmentation (Separate train and validation (val) directories for each Set of labeled data.)
+        - set_1_train
             - patches
             - masks
+            - pred_masks _(for verification after training)_
+        - set_1_val
+            - patches
+            - masks
+            - pred_masks _(for verification after training)_
 
     - amphipod_classification (class_labels: "amphipod", "nonamphipod")
         - train
+            - patches
+            - annotation_file ("patch_name,class_label")
+        - val
             - patches
             - annotation_file ("patch_name,class_label")
 
@@ -40,7 +49,7 @@ _file extension_:* "png" <br/><br/>
         - analysis_report (consolidation of report.json files from each of the test frame images.)
 
 ##### Report format (report.json):
-###### Frame level object format (frame_report):
+###### Frame level report format (frame_report):
 ```json
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
@@ -53,22 +62,22 @@ _file extension_:* "png" <br/><br/>
     },
     "location_sizes": {
         "amphipod": {
-            (X_wrt_frame, Y_wrt_frame): num_pixels,
-            (324, 1452): 65,
+            "[X_wrt_frame,Y_wrt_frame]": num_pixels,
+            "[324,1452]": 65,
             ...
         }
         "crab": {
-            (x, y): pixels,
+            "[x,y]": pixels,
             ...
         }
         "other": {
-            (x, y): pixels,
+            "[x,y]": pixels,
             ...
         }
     }
 }
 ```
-###### Video level object format (frame_report):
+###### Video level report format (video_report) from a regions file of a video:
 ```json
 {
     "video": "CAMHDA301-20180711T001500",
