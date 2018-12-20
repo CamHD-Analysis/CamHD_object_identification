@@ -48,12 +48,15 @@ def adjust_data_multi_class(img,mask,flag_multi_class,num_class):
     return (img,mask)
 
 
-def adjust_data(img,mask,flag_multi_class,num_class):
+def adjust_data(img, mask=None, flag_multi_class=False, num_class=None):
     if(flag_multi_class):
         raise ValueError("MultiClass Not supported yet!")
     elif(np.max(img) > 1):
         # TODO: Try LCN if this doesn't work.
         img = img / 255
+
+        if mask is None:
+            return img
 
         mask = mask / 255
         mask[mask > 0.5] = 1
@@ -138,7 +141,6 @@ def labelVisualize(num_class,color_dict,img):
     for i in range(num_class):
         img_out[img == i,:] = color_dict[i]
     return img_out / 255
-
 
 
 def saveResult(save_path,npyfile,flag_multi_class = False,num_class = 2):
