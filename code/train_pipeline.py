@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from models import unet
-from data_prep import train_generator
+from .models import unet
+from .data_prep import train_generator
 from keras.callbacks import TensorBoard, ModelCheckpoint
 from skimage import io
 
