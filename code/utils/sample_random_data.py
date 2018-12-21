@@ -40,9 +40,10 @@ def get_args():
                         dest='img_ext',
                         default='png',
                         help="The image file extension. Default: png.")
-    parser.add_argument('--lazycache-url', dest='lazycache',
+    parser.add_argument('--lazycache-url',
+                        dest='lazycache',
                         default=os.environ.get("LAZYCACHE_URL", None),
-                        help='URL to Lazycache repo server (only needed if classifying)')
+                        help='URL to Lazycache repo server. Default: Environment variable LAZYCACHE_URL.')
     parser.add_argument("--log",
                         default="INFO",
                         help="Specify the log level. Default: INFO.")
@@ -95,6 +96,9 @@ def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob):
 
 
 def sample_random_frames(args):
+    if not args.lazycache:
+        raise ValueError("The lazycache-url could not be found.")
+
     blacklist_days = ["01", "02", "03", "10", "20"]
     def _process(infile):
         day = os.path.basename(infile).split("-")[1][6:8]
