@@ -15,7 +15,7 @@ def get_args():
     Run Analysis on a given video regions_file and output the analysis report.
     Intermediate analysis files will be written to provided analysis-work-dir in
     debug mode (currently set to default).
-    
+
     Sample analysis config:
     {
         "analysis_version": "prototype-1",
