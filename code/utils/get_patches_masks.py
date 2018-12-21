@@ -170,6 +170,8 @@ def get_patches_masks(anno_work_dir, obj_label, output_dir, backup_dir_raw, back
 
 if __name__ == "__main__":
     args = get_args()
+    logging.basicConfig(level=args.log.upper())
+
     get_patches_masks(args.anno_work_dir,
                       args.label,
                       args.output,

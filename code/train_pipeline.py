@@ -64,6 +64,9 @@ def get_args():
     parser.add_argument('--test-output-dir',
                         help="The path to the output directory where the predictions need to be written."
                              "Valid for functions: 'test_unet'.")
+    parser.add_argument("--log",
+                        default="INFO",
+                        help="Specify the log level. Default: INFO.")
 
     return parser.parse_args()
 
@@ -201,6 +204,7 @@ def test_unet(args):
 
 if __name__ == "__main__":
     args = get_args()
+    logging.basicConfig(level=args.log.upper())
 
     if   args.func == "train_unet":
         train_unet(args)
