@@ -53,8 +53,8 @@ _file extension_:* "png" <br/><br/>
 ```json
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
-    "scene_tag": "d5A_p1_z1",
-    "frame_resolution": "[1920,1080]",
+    "scene_tag": "p1_z1",
+    "frame_resolution": "[1920, 1080]",
     "counts": {
         "amphipod": 4,
         "crab": 2,
@@ -62,12 +62,12 @@ _file extension_:* "png" <br/><br/>
     },
     "location_sizes": {
         "amphipod": {
-            "[X_wrt_frame,Y_wrt_frame]": num_pixels,
-            "[324,1452]": 65,
+            "[X_wrt_frame, Y_wrt_frame]": num_pixels,
+            "[324, 1452]": 65,
             ...
         }
         "crab": {
-            "[x,y]": pixels,
+            "[x, y]": pixels,
             ...
         }
         "other": {
@@ -85,8 +85,8 @@ _file extension_:* "png" <br/><br/>
     "date": "20180711",
     "time": "00:15",
     "frames": [
-        frame_report_1,
-        frame_report_2,
+        "scene_tag": frame_report_1,
+        "p1_z1": frame_report_2,
         ...
     ]
 }
