@@ -57,8 +57,9 @@ def get_args():
                         required=True,
                         help="Specify the function to be called. The available list of functions: ['train_cnn', 'test_cnn'].")
     parser.add_argument('--data-dir',
-                        help="The path to the data directory containing the patches and masks directories. "
-                             "The masks directory is assumed to have names of corresponding patches with suffix - '_mask'."
+                        help="The path to the data directory containing the images corresponding to each class label. "
+                             "The images of each class label must be organized into separate directory having the "
+                             "the name of the corresponding class label."
                              "Valid for functions: 'train_cnn'.")
     parser.add_argument('--classes',
                         required=True,
