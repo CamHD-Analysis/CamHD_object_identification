@@ -64,7 +64,7 @@ _file extension_:* "png" <br/><br/>
             "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
             "[324, 1452]": 65,
             "<...>": "<>"
-        }
+        },
         "star": {
             "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
             "<...>": "<>"
@@ -79,10 +79,10 @@ _file extension_:* "png" <br/><br/>
     "deployment": "d5A",
     "date": "20180711",
     "time": "00:15",
-    "frames": [
+    "frames": {
         "<scene_tag>": "<frame_report_1>",
-        "p1_z1": "<frame_report_2">,
-        ...
-    ]
+        "p1_z1": "<frame_report_2>",
+        "<...>": "<>"
+    }
 }
 ```
