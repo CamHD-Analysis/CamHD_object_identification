@@ -13,7 +13,7 @@ _sample src_frame_name (VideoName_Frame)_: "CAMHDA301-20180711T001500_1274.png" 
 _file extension_:* "png" <br/><br/>
 
 - Object Types:
-    - amphipod (patch size: 256x256)
+    - amphipod (patch size: 256x256) (_NOTE: These are identified as 'scaleworms', but referred as amphipods in this project._)
     - star (patch size: 256x256)
 
 ##### Directory Structure:
@@ -54,7 +54,7 @@ _file extension_:* "png" <br/><br/>
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
     "scene_tag": "d5A_p1_z1",
-    "frame_res": "[1920,1080]",
+    "frame_resolution": "[1920,1080]",
     "counts": {
         "amphipod": 4,
         "crab": 2,
