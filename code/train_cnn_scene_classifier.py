@@ -21,7 +21,33 @@ import shutil
 
 TARGET_SIZE = (224, 224) # TODO: This could be generalized once the script allows multiple types of models.
 SCENE_TAGS_CLASSIFICATION_SPEC_STRING = "SCENE_TAGS"
-SCENE_TAGS = [] # TODO: Fill this with standard scene tags from CamHD.
+
+# Standard CamHD scene_tags in the expected order.
+SCENE_TAGS = [
+    'p0_z0',
+    'p0_z1',
+    'p0_z2',
+    'p1_z0',
+    'p1_z1',
+    'p2_z0',
+    'p2_z1',
+    'p3_z0',
+    'p3_z1',
+    'p3_z2',
+    'p4_z0',
+    'p4_z1',
+    'p4_z2',
+    'p5_z0',
+    'p5_z1',
+    'p5_z2',
+    'p6_z0',
+    'p6_z1',
+    'p6_z2',
+    'p7_z0',
+    'p7_z1',
+    'p8_z0',
+    'p8_z1'
+]
 
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -101,10 +127,13 @@ def get_train_val_split(data_dir, val_split):
     train_size = 0
     val_size = 0
 
-    # Each of these labels must be directories. TODO: A validation check can be added for this.
+    # Each of these labels must be directories.
     labels = os.listdir(data_dir)
     for label in labels:
         orig_label_dir_path = os.path.join(data_dir, label)
+        if not os.isdir(orig_label_dir_path):
+            raise ValueError("The data doesn't seem to have been correctly organized.")
+
         train_label_dir_path = os.path.join(train_dir, label)
         os.makedirs(train_label_dir_path)
         val_label_dir_path = os.path.join(val_dir, label)
