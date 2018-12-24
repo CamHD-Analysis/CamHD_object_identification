@@ -168,6 +168,8 @@ def train_unet(args):
                         shuffle=True,
                         callbacks=callbacks)
 
+    logging.info("The trained model has been saved in %s" % args.model_outfile)
+
 
 def test_unet(args):
     if not args.test_dir:

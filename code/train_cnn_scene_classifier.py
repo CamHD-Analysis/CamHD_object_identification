@@ -132,7 +132,7 @@ def get_train_val_split(data_dir, val_split):
     labels = os.listdir(data_dir)
     for label in labels:
         orig_label_dir_path = os.path.join(data_dir, label)
-        if not os.isdir(orig_label_dir_path):
+        if not os.path.isdir(orig_label_dir_path):
             raise ValueError("The data doesn't seem to have been correctly organized.")
 
         train_label_dir_path = os.path.join(train_dir, label)
@@ -170,8 +170,8 @@ def train_cnn(args):
 
     # Load the model and compile.
     # TODO: Modify to allow different kinds of model to be loaded.
-    model = VGG16(include_top=True, weights='imagenet', classes=len(args.classes))
-    model.compile(optimizer=Adam(lr = 1e-4), loss=categorical_crossentropy, metrics=['accuracy'])
+    model = VGG16(include_top=True, weights=None, classes=len(args.classes))
+    model.compile(optimizer=Adam(lr=1e-4), loss=categorical_crossentropy, metrics=['accuracy'])
 
     # Setup data loading.
     # This is the augmentation configuration we will use for training.
@@ -217,6 +217,8 @@ def train_cnn(args):
                         epochs=args.epochs,
                         shuffle=True,
                         callbacks=callbacks)
+
+    logging.info("The trained model has been saved in %s" % args.model_outfile)
 
 
 def test_cnn(args):
