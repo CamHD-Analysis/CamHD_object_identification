@@ -57,22 +57,17 @@ _file extension_:* "png" <br/><br/>
     "frame_resolution": "[1920, 1080]",
     "counts": {
         "amphipod": 4,
-        "crab": 2,
-        "other": 2
+        "star": 2
     },
     "location_sizes": {
         "amphipod": {
-            "[X_wrt_frame, Y_wrt_frame]": num_pixels,
+            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
             "[324, 1452]": 65,
-            ...
+            "<...>": "<>"
         }
-        "crab": {
-            "[x, y]": pixels,
-            ...
-        }
-        "other": {
-            "[x,y]": pixels,
-            ...
+        "star": {
+            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
+            "<...>": "<>"
         }
     }
 }
@@ -85,8 +80,8 @@ _file extension_:* "png" <br/><br/>
     "date": "20180711",
     "time": "00:15",
     "frames": [
-        "scene_tag": frame_report_1,
-        "p1_z1": frame_report_2,
+        "<scene_tag>": "<frame_report_1>",
+        "p1_z1": "<frame_report_2">,
         ...
     ]
 }
