@@ -22,7 +22,7 @@ import shutil
 TARGET_SIZE = (224, 224) # TODO: This could be generalized once the script allows multiple types of models.
 SCENE_TAGS_CLASSIFICATION_SPEC_STRING = "SCENE_TAGS"
 
-# Standard CamHD scene_tags in the expected order.
+# Standard CamHD scene_tags.
 SCENE_TAGS = [
     'p0_z0',
     'p0_z1',
