@@ -3,12 +3,17 @@
 import pycamhd.lazycache as camhd
 import pycamhd.motionmetadata as mmd
 
+import models
+
 from collections import defaultdict
+from keras.models import load_model
 from skimage import io
 
 import argparse
+import cv2
 import json
 import logging
+import numpy as np
 import os
 
 FRAME_RESOLUTION = (1920, 1080)
@@ -22,6 +27,9 @@ LABEL_TO_COLOR_DICT = {
     "amphipod": (255, 0, 0),    # RED
     "star": (255, 255, 0)       # Yellow
 }
+
+# TODO: Generalize the patch_size.
+PATCH_SIZE = 256
 
 def get_args():
     parser = argparse.ArgumentParser(description=
@@ -82,10 +90,121 @@ def _is_sharp(img, scene_tag):
     return False
 
 
+# TODO: Keep this logic at one place.
+def get_patch(img, center_coord, patch_size, padding_check=True):
+    if padding_check:
+        pad_size = int(patch_size / 2)
+        img = cv2.copyMakeBorder(img,
+                                 top=pad_size,
+                                 bottom=pad_size,
+                                 left=pad_size,
+                                 right=pad_size,
+                                 borderType=cv2.BORDER_CONSTANT,
+                                 value=0)
+        center_coord = (center_coord[0] + pad_size, center_coord[1] + pad_size)
+
+    patch_x = int(center_coord[0] - patch_size / 2)
+    patch_y = int(center_coord[1] - patch_size / 2)
+    patch = img[patch_y:patch_y + patch_size, patch_x:patch_x + patch_size]
+    return patch
+
+
+def _invoke_unet(patch, model, mask_index):
+    patch = np.reshape(patch, (1,) + patch.shape)
+    pred_mask = model.predict(patch)
+    pred_mask = pred_mask[mask_index] * 255
+    pred_mask = pred_mask.astype(np.uint8)
+    pred_mask = np.reshape(pred_mask, pred_mask.shape[:-1])
+    return pred_mask
+
+
 # Utility functions of analyse_frame function.
-def _get_raw_mask(frame, label_to_segmentation_model_dict):
-    # return stitched_mask
-    pass
+def _get_raw_mask(frame, segmentation_model_config):
+    def _crop_center(img, cropx, cropy):
+        y, x = img.shape
+        startx = x // 2 - (cropx // 2)
+        starty = y // 2 - (cropy // 2)
+        return img[starty:starty + cropy, startx:startx + cropx]
+
+
+    if frame.shape[:-1] != FRAME_RESOLUTION:
+        raise ValueError("The frame resolution needs to be %s" % FRAME_RESOLUTION)
+
+    # Assuming a square patch.
+    patch_size = segmentation_model_config["input_shape"][:-1][0]
+    stride_size = patch_size // 2
+
+    if frame.shape[0] % stride_size == 0:
+        height_adjustment = 0
+    else:
+        height_adjustment = stride_size - (frame.shape[0] % stride_size)
+
+    if frame.shape[1] % stride_size == 0:
+        width_adjustment = 0
+    else:
+        width_adjustment = stride_size - (frame.shape[1] % stride_size)
+
+    # Check for even value of adjustment paddings.
+    if not any([x % 2 != 2 for x in (height_adjustment, width_adjustment)]):
+        raise ValueError("The frame dimensions couldn't be adjusted for stride_size: %s" % stride_size)
+
+    adjusted_frame = cv2.copyMakeBorder(frame,
+                                        top=height_adjustment // 2,
+                                        bottom=height_adjustment // 2,
+                                        left=width_adjustment // 2,
+                                        right=width_adjustment // 2,
+                                        borderType=cv2.BORDER_CONSTANT,
+                                        value=0)
+
+    # Padding for taking the strided patches.
+    padded_frame = cv2.copyMakeBorder(adjusted_frame,
+                                      top=stride_size,
+                                      bottom=stride_size,
+                                      left=stride_size,
+                                      right=stride_size,
+                                      borderType=cv2.BORDER_CONSTANT,
+                                      value=0)
+
+    row_ordered_coords = []
+    for ri in range(stride_size, padded_frame.shape[0] - stride_size + 1, stride_size):
+        row_i = []
+        for ci in range(stride_size, padded_frame.shape[1] - stride_size + 1, stride_size):
+            row_i.append((ci, ri))
+
+        row_ordered_coords.append(row_i)
+
+    # TODO: Standardize the model definition.
+    # Invoke and stitch mask
+    if "load_model_arch" in segmentation_model_config:
+        model = getattr(models, segmentation_model_config["load_model_arch"])()
+        model.load_weights(segmentation_model_config["model_path"])
+    else:
+        model = load_model(segmentation_model_config["model_path"])
+
+    mask_index = segmentation_model_config["mask_index"]
+
+    row_stitched_masks = []
+    for ri_coords in row_ordered_coords:
+        ri_masks = []
+        for coord in ri_coords:
+            patch = get_patch(padded_frame, coord, patch_size, padding_check=False)
+            if segmentation_model_config.get("rescale", True):
+                patch = patch * (1.0 / 255)
+
+            cur_mask = _invoke_unet(patch, model, mask_index)
+            cur_mask_center_crop = _crop_center(cur_mask, stride_size, stride_size)
+            ri_masks.append(cur_mask_center_crop)
+
+        ri_stitched_mask = np.hstack(ri_masks)
+        row_stitched_masks.append(ri_stitched_mask)
+
+    padded_stitched_mask = np.vstack(row_stitched_masks)
+
+    adjusted_stitched_mask = _crop_center(padded_stitched_mask,
+                                          adjusted_frame.shape[1],
+                                          adjusted_frame.shape[0])
+
+    return adjusted_stitched_mask
 
 
 def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
@@ -114,22 +233,23 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
 }
 
 # TODO: Add parameter - label_to_classification_model_dict
-def analyse_frame(scene_tag, frame_path, label_to_segmentation_model_dict, img_ext="png"):
+def analyse_frame(scene_tag, frame_path, label_to_segmentation_model_config_dict, img_ext="png"):
     work_dir, frame_name = os.path.splitext(frame_path)
     frame_base_name = frame_name.split(".%s" % img_ext)[0]
 
     frame = io.imread(frame_path)
 
-    label_to_raw_mask_dict = _get_raw_mask(frame, label_to_segmentation_model_dict)
-    for label, raw_mask in label_to_raw_mask_dict.items():
+    label_to_raw_mask_dict = {}
+    for label, segmentation_model_config in label_to_raw_mask_dict.items():
+        raw_mask = _get_raw_mask(frame, segmentation_model_config)
+        label_to_raw_mask_dict[label] = raw_mask
         io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
                                % (frame_base_name, img_ext)), raw_mask, label)
 
     label_to_postprocessed_mask_dict = {}
     for label, raw_mask in label_to_raw_mask_dict.items():
-        label_to_postprocessed_mask_dict[label] = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
-
-    for label, postprocessed_mask in label_to_postprocessed_mask_dict.items():
+        postprocessed_mask = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
+        label_to_postprocessed_mask_dict[label] = postprocessed_mask
         io.imsave(os.path.join(work_dir, "%s_postprocessed_mask.%s"
                                % (frame_base_name, img_ext)), postprocessed_mask, label)
 
