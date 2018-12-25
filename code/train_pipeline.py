@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from .models import unet
-from .data_prep import train_generator
+from models import unet
+from data_prep import train_generator
 from keras.callbacks import TensorBoard, ModelCheckpoint
 from skimage import io
 
@@ -77,7 +77,7 @@ def _get_mask_name(patch_name, img_ext):
 
 def get_train_val_split(data_dir, val_split, patches_dirname, masks_dirname, img_ext):
     if val_split > 0.5:
-        raise ValueError("The validation split of0.5 and above are not accepted.")
+        raise ValueError("The validation split of 0.5 and above are not accepted.")
 
     train_dir = data_dir + "_train"
     if os.path.exists(train_dir):
@@ -91,7 +91,7 @@ def get_train_val_split(data_dir, val_split, patches_dirname, masks_dirname, img
 
     val_dir = data_dir + "_val"
     if os.path.exists(val_dir):
-        raise ValueError("The test_generatorval_dir already exists: %s" % val_dir)
+        raise ValueError("The val_dir already exists: %s" % val_dir)
     os.makedirs(val_dir)
 
     val_patches_dir = os.path.join(val_dir, patches_dirname)
