@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+"""
+Train a U-Net segmentation model.
+
+TODO: Currently the selected models are persisted as a model_config after the training done using this script.
+
+"""
+
 from models import unet
 from data_prep import train_generator
 from keras.callbacks import TensorBoard, ModelCheckpoint
@@ -196,6 +203,7 @@ def test_unet(args):
         img = np.reshape(img, (1, ) + img.shape)
 
         pred_mask = model.predict(img)
+        # TODO: Take the mask_index from the model_config.
         pred_mask = pred_mask[0] * 255
         pred_mask = pred_mask.astype(np.uint8)
         pred_mask = np.reshape(pred_mask, pred_mask.shape[:-1])

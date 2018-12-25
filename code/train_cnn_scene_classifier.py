@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
 """
+Train a CNN classification model.
+
+TODO: Currently the selected models are persisted as a model_config after the training done using this script.
+
 # Ref: https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
 # Ref: https://keras.io/applications/#vgg16
 
@@ -18,9 +22,11 @@ import random
 import shutil
 
 
-TARGET_SIZE = (128, 128, 3) # TODO: This could be generalized once the script allows multiple types of models.
+# TODO: This could be generalized once the script allows multiple types of models by reading form model_config.
+TARGET_SIZE = (128, 128, 3)
 SCENE_TAGS_CLASSIFICATION_SPEC_STRING = "SCENE_TAGS"
 
+# TODO: Keep this logic at one place.
 # Standard CamHD scene_tags.
 SCENE_TAGS = [
     'p0_z0',
