@@ -13,7 +13,7 @@ _sample src_frame_name (VideoName_Frame)_: "CAMHDA301-20180711T001500_1274.png" 
 _file extension_:* "png" <br/><br/>
 
 - Object Types:
-    - amphipod (patch size: 256x256)
+    - amphipod (patch size: 256x256) (_NOTE: These are identified as 'scaleworms', but referred as amphipods in this project._)
     - star (patch size: 256x256)
 
 ##### Directory Structure:
@@ -53,26 +53,21 @@ _file extension_:* "png" <br/><br/>
 ```json
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
-    "scene_tag": "d5A_p1_z1",
-    "frame_res": "[1920,1080]",
+    "scene_tag": "p1_z1",
+    "frame_resolution": "[1920, 1080]",
     "counts": {
         "amphipod": 4,
-        "crab": 2,
-        "other": 2
+        "star": 2
     },
     "location_sizes": {
         "amphipod": {
-            "[X_wrt_frame,Y_wrt_frame]": num_pixels,
-            "[324,1452]": 65,
-            ...
-        }
-        "crab": {
-            "[x,y]": pixels,
-            ...
-        }
-        "other": {
-            "[x,y]": pixels,
-            ...
+            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
+            "[324, 1452]": 65,
+            "<...>": "<>"
+        },
+        "star": {
+            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
+            "<...>": "<>"
         }
     }
 }
@@ -84,10 +79,10 @@ _file extension_:* "png" <br/><br/>
     "deployment": "d5A",
     "date": "20180711",
     "time": "00:15",
-    "frames": [
-        frame_report_1,
-        frame_report_2,
-        ...
-    ]
+    "frames": {
+        "<scene_tag>": "<frame_report_1>",
+        "p1_z1": "<frame_report_2>",
+        "<...>": "<>"
+    }
 }
 ```

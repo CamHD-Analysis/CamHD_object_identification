@@ -74,6 +74,7 @@ def get_args():
     return parser.parse_args()
 
 
+# TODO: Put this logic at one place, since it is also used in the analysis_pipeline.
 def get_patch(img, center_coord, patch_size):
     pad_size = int(patch_size / 2)
     padded_img = cv2.copyMakeBorder(img,

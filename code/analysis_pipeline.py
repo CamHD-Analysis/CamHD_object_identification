@@ -3,11 +3,25 @@
 import pycamhd.lazycache as camhd
 import pycamhd.motionmetadata as mmd
 
+from collections import defaultdict
+from skimage import io
+
 import argparse
 import json
 import logging
 import os
 
+FRAME_RESOLUTION = (1920, 1080)
+
+# TODO: Try the thresholds for each scene and enter the thresholds here.
+SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT = {
+
+}
+
+LABEL_TO_COLOR_DICT = {
+    "amphipod": (255, 0, 0),    # RED
+    "star": (255, 255, 0)       # Yellow
+}
 
 def get_args():
     parser = argparse.ArgumentParser(description=
@@ -55,6 +69,102 @@ def get_args():
                         help="Specify the log level. Default: DEBUG.")
 
     return parser.parse_args()
+
+
+def _is_sharp(img, scene_tag):
+    def _get_sharpness_score(img):
+        pass
+
+
+    if _get_sharpness_score(img) >= SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT[scene_tag]:
+        return True
+
+    return False
+
+
+# Utility functions of analyse_frame function.
+def _get_raw_mask(frame, label_to_segmentation_model_dict):
+    # return stitched_mask
+    pass
+
+
+def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
+    # return patch_coord_to_label_size_dict
+    pass
+
+
+def _get_marked_image(frame, patch_coord_to_label_size_dict, label_to_color_dict):
+    # return marked_image
+    pass
+
+
+# Utility functions of analyse_frame function: Postprocess functions:
+def _postprocess_mask_1(raw_mask):
+    #return postprocessed_mask
+    pass
+
+
+def _postprocess_mask_2(raw_mask):
+    #return postprocessed_mask
+    pass
+
+LABEL_TO_POSTPROCESS_FUNC_DICT = {
+    "amphipod": _postprocess_mask_1,
+    "star": _postprocess_mask_2
+}
+
+# TODO: Add parameter - label_to_classification_model_dict
+def analyse_frame(scene_tag, frame_path, label_to_segmentation_model_dict, img_ext="png"):
+    work_dir, frame_name = os.path.splitext(frame_path)
+    frame_base_name = frame_name.split(".%s" % img_ext)[0]
+
+    frame = io.imread(frame_path)
+
+    label_to_raw_mask_dict = _get_raw_mask(frame, label_to_segmentation_model_dict)
+    for label, raw_mask in label_to_raw_mask_dict.items():
+        io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
+                               % (frame_base_name, img_ext)), raw_mask, label)
+
+    label_to_postprocessed_mask_dict = {}
+    for label, raw_mask in label_to_raw_mask_dict.items():
+        label_to_postprocessed_mask_dict[label] = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
+
+    for label, postprocessed_mask in label_to_postprocessed_mask_dict.items():
+        io.imsave(os.path.join(work_dir, "%s_postprocessed_mask.%s"
+                               % (frame_base_name, img_ext)), postprocessed_mask, label)
+
+    # This contains list of centroids mapped to labels
+    patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
+
+    # TODO: Extract Patches and Classify the patches to get validated patch_coord_to_label_dict.
+    # patch_coord_to_label_size_dict = _validate_by_classification(frame,
+    #                                                              patch_coord_to_label_size_dict,
+    #                                                              label_to_classification_model_dict)
+
+    marked_image = _get_marked_image(frame, patch_coord_to_label_size_dict, LABEL_TO_COLOR_DICT)
+    io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
+
+    # Format the result.
+    label_to_location_sizes_dict = defaultdict(dict)
+    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
+        label, size = label_size
+        label_to_location_sizes_dict[label][patch_coord] = size
+
+    label_to_counts_dict = {}
+    for label, location_sizes in label_to_location_sizes_dict.items():
+        label_to_counts_dict[label] = len(location_sizes)
+
+    result_dict = {
+        "frame": frame_base_name,
+        "scene_tag": scene_tag,
+        "frame_res": json.dumps(FRAME_RESOLUTION),
+        "counts": label_to_counts_dict,
+        "location_sizes": label_to_location_sizes_dict
+    }
+    with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
+        json.dump(result_dict, fp)
+
+    return result_dict
 
 
 def analyse_regions_file(args):
