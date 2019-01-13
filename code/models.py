@@ -240,6 +240,6 @@ def vgg16_custom(num_classes, input_size, batch_norm=True, pretrained_weights=No
     model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
     if(pretrained_weights):
-    	model.load_weights(pretrained_weights)
+        model.load_weights(pretrained_weights)
 
     return model

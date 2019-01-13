@@ -37,6 +37,9 @@ PATCH_SIZE = 256
 # TODO: This puts a restriction that this script must be run from repository root dir.
 TRAINED_MODELS_DIR = "./trained_models"
 
+# Stores the model_path mapped to the loaded model, eliminating reloading the model.
+MODEL_CACHE = {}
+
 def get_args():
     parser = argparse.ArgumentParser(description=
     """
@@ -195,11 +198,17 @@ def _get_raw_mask(frame, segmentation_model_config):
 
     # TODO: Standardize the model definition.
     # Invoke and stitch mask
-    if "load_model_arch" in segmentation_model_config:
-        model = getattr(models, segmentation_model_config["load_model_arch"])()
-        model.load_weights(os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"]))
-    else:
-        model = load_model(os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"]))
+    model_path = os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"])
+    if model_path not in MODEL_CACHE:
+        if "load_model_arch" in segmentation_model_config:
+            model = getattr(models, segmentation_model_config["load_model_arch"])()
+            model.load_weights(model_path)
+            MODEL_CACHE[model_path] = model
+        else:
+            model = load_model(model_path)
+            MODEL_CACHE[model_path] = model
+
+    model = MODEL_CACHE[model_path]
 
     mask_index = segmentation_model_config["mask_index"]
 
