@@ -237,7 +237,6 @@ def _get_raw_mask(frame, segmentation_model_config):
     raw_mask = _crop_center(adjusted_stitched_mask,
                             frame.shape[1],
                             frame.shape[0])
-    io.imsave("./raw_mask.png", raw_mask * 255)
     return raw_mask
 
 
@@ -285,7 +284,6 @@ def _postprocess_mask_1(raw_mask):
             for coord in region.coords:
                 closed_mask[coord] = False
 
-    io.imsave("./postprocessed_mask.png", closed_mask * 255)
     return closed_mask
 
 
@@ -334,7 +332,8 @@ def analyse_frame(scene_tag,
                   label_to_segmentation_model_config_dict,
                   label_to_classification_model_config_dict,
                   img_ext="png",
-                  patches_output_dir=None):
+                  patches_output_dir=None,
+                  no_write=False):
     work_dir, frame_name = os.path.split(frame_path)
     frame_base_name = frame_name.split(".%s" % img_ext)[0]
 
@@ -344,15 +343,17 @@ def analyse_frame(scene_tag,
     for label, segmentation_model_config in label_to_segmentation_model_config_dict.items():
         raw_mask = _get_raw_mask(frame, segmentation_model_config)
         label_to_raw_mask_dict[label] = raw_mask
-        io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
-                               % (frame_base_name, label, img_ext)), raw_mask * 255)
+        if not no_write:
+            io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
+                                   % (frame_base_name, label, img_ext)), raw_mask * 255)
 
     label_to_postprocessed_mask_dict = {}
     for label, raw_mask in label_to_raw_mask_dict.items():
         postprocessed_mask = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
         label_to_postprocessed_mask_dict[label] = postprocessed_mask
-        io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
-                               % (frame_base_name, label, img_ext)), postprocessed_mask * 255)
+        if not no_write:
+            io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
+                                   % (frame_base_name, label, img_ext)), postprocessed_mask * 255)
 
     # This contains list of centroids mapped to labels
     patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
@@ -377,7 +378,8 @@ def analyse_frame(scene_tag,
                                                                            label_to_classification_model_config_dict)
 
     marked_image = _get_marked_image(frame, validated_patch_coord_to_label_size_dict, LABEL_TO_COLOR_DICT)
-    io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
+    if not no_write:
+        io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
     # Format the result.
     label_to_location_sizes_dict = defaultdict(dict)
@@ -433,6 +435,7 @@ if __name__ == "__main__":
                               label_to_segmentation_model_config_dict,
                               label_to_classification_model_config_dict=None,
                               img_ext="png",
-                              patches_output_dir=args.patches_output_dir)
+                              patches_output_dir=args.patches_output_dir,
+                              no_write=False)
     else:
         analyse_regions_file(args)
