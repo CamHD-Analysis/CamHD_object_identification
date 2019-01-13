@@ -8,6 +8,9 @@ import models
 from collections import defaultdict
 from keras.models import load_model
 from skimage import io
+from skimage.measure import label, regionprops
+from skimage.morphology import opening, closing
+from skimage.morphology import disk
 
 import argparse
 import cv2
@@ -16,7 +19,7 @@ import logging
 import numpy as np
 import os
 
-FRAME_RESOLUTION = (1920, 1080)
+FRAME_RESOLUTION = (1080, 1920)
 
 # TODO: Try the thresholds for each scene and enter the thresholds here.
 SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT = {
@@ -30,6 +33,9 @@ LABEL_TO_COLOR_DICT = {
 
 # TODO: Generalize the patch_size.
 PATCH_SIZE = 256
+
+# TODO: This puts a restriction that this script must be run from repository root dir.
+TRAINED_MODELS_DIR = "./trained_models"
 
 def get_args():
     parser = argparse.ArgumentParser(description=
@@ -53,17 +59,23 @@ def get_args():
     }
     """)
     parser.add_argument('--config',
-                        required=True,
                         help="The analysis config (JSON). Please refer to the sample analyser config.")
     parser.add_argument('--regions-file',
-                        required=True,
                         help="The path to the video regions_file on which the analysis needs to be run.")
     parser.add_argument('--analysis-work-dir',
-                        required=True,
                         help="The path to the directory where intermediate analysis files can be written.")
     parser.add_argument('--outfile',
-                        required=True,
                         help="The path at which the analysis report needs to be saved.")
+
+    parser.add_argument('--extract-patches-only',
+                        action="store_true",
+                        help="Only extracts the patches sent for classifier in the provided patches-output-dir.")
+    parser.add_argument('--input-data-dir',
+                        help="The path to the directory containing the input data frames organized by scene_tags.")
+    parser.add_argument('--patches-output-dir',
+                        help="The path at which the patches sent for classifier need to be saved."
+                             "It is required if 'extract-patches-only' flag is set.")
+
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -88,6 +100,13 @@ def _is_sharp(img, scene_tag):
         return True
 
     return False
+
+
+class RegionSize(object):
+    def __init__(self, area, bb_length, bb_width):
+        self.area = area
+        self.bb_length = bb_length
+        self.bb_width = bb_width
 
 
 # TODO: Keep this logic at one place.
@@ -128,7 +147,8 @@ def _get_raw_mask(frame, segmentation_model_config):
 
 
     if frame.shape[:-1] != FRAME_RESOLUTION:
-        raise ValueError("The frame resolution needs to be %s" % FRAME_RESOLUTION)
+        raise ValueError("The frame resolution needs to be %s, but the current frame resolution is %s"
+                         % (str(FRAME_RESOLUTION), str(frame.shape[:-1])))
 
     # Assuming a square patch.
     patch_size = segmentation_model_config["input_shape"][:-1][0]
@@ -177,9 +197,9 @@ def _get_raw_mask(frame, segmentation_model_config):
     # Invoke and stitch mask
     if "load_model_arch" in segmentation_model_config:
         model = getattr(models, segmentation_model_config["load_model_arch"])()
-        model.load_weights(segmentation_model_config["model_path"])
+        model.load_weights(os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"]))
     else:
-        model = load_model(segmentation_model_config["model_path"])
+        model = load_model(os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"]))
 
     mask_index = segmentation_model_config["mask_index"]
 
@@ -204,12 +224,27 @@ def _get_raw_mask(frame, segmentation_model_config):
                                           adjusted_frame.shape[1],
                                           adjusted_frame.shape[0])
 
-    return adjusted_stitched_mask
+    # Re-adjust the mask to match the frame resolution.
+    raw_mask = _crop_center(adjusted_stitched_mask,
+                            frame.shape[1],
+                            frame.shape[0])
+    io.imsave("./raw_mask.png", raw_mask * 255)
+    return raw_mask
 
 
 def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
-    # return patch_coord_to_label_size_dict
-    pass
+    patch_coord_to_label_size_dict = {}
+    for label, mask in label_to_postprocessed_mask_dict.items():
+        label_image = label(mask)
+        for region in regionprops(label_image):
+            minr, minc, maxr, maxc = region.bbox
+            bb_length = maxc - minc
+            bb_width = maxr - minr
+            region_size = RegionSize(region.area, bb_length, bb_width)
+            patch_coord = tuple([int(x) for x in region.centroid])
+            patch_coord_to_label_size_dict[patch_coord] = (label, region_size)
+
+    return patch_coord_to_label_size_dict
 
 
 def _get_marked_image(frame, patch_coord_to_label_size_dict, label_to_color_dict):
@@ -219,8 +254,30 @@ def _get_marked_image(frame, patch_coord_to_label_size_dict, label_to_color_dict
 
 # Utility functions of analyse_frame function: Postprocess functions:
 def _postprocess_mask_1(raw_mask):
-    #return postprocessed_mask
-    pass
+    prob_thresh_1 = 0.5
+    binary_mask = raw_mask > prob_thresh_1
+    # After this all are binary (bool ndarray) images.
+    opened_mask = opening(binary_mask, disk(6))
+    closed_mask = closing(opened_mask, disk(6))
+    label_image = label(closed_mask)
+
+    for region in regionprops(label_image):
+        minr, minc, maxr, maxc = region.bbox
+        bb_length = maxc - minc
+        bb_width = maxr - minr
+        # Apply min and max bounding box restrictions.
+        # TODO: There could be better metric to put restrictions on.
+        # We don't know the min and max size of amphipods. So putting restrictions based on
+        # the analysis pipeline structure, where square patch extraction is the next step.
+        # Currently, restricting the working objects to stay within a bounding box of 64 to 256.
+        if (bb_length > 256 or bb_length < 64 or
+            bb_width > 256 or bb_width < 64):
+            # Clear the region by setting the coords to False.
+            for coord in region.coords:
+                closed_mask[coord] = False
+
+    io.imsave("./postprocessed_mask.png", closed_mask * 255)
+    return closed_mask
 
 
 def _postprocess_mask_2(raw_mask):
@@ -232,41 +289,90 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
     "star": _postprocess_mask_2
 }
 
-# TODO: Add parameter - label_to_classification_model_dict
-def analyse_frame(scene_tag, frame_path, label_to_segmentation_model_config_dict, img_ext="png"):
-    work_dir, frame_name = os.path.splitext(frame_path)
+
+def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=256):
+    label_to_coord_patches_dict = defaultdict(list)
+    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
+        label, region_size = label_size
+        if (region_size.bb_length < patch_size // 2 or
+            region_size.bb_width < patch_size // 2):
+            unpadded_patch = get_patch(frame, patch_coord, patch_size // 2, padding_check=True)
+            pad_size = patch_size // 2
+            patch = cv2.copyMakeBorder(unpadded_patch,
+                                       top=pad_size,
+                                       bottom=pad_size,
+                                       left=pad_size,
+                                       right=pad_size,
+                                       borderType=cv2.BORDER_CONSTANT,
+                                       value=0)
+        else:
+            patch = get_patch(frame, patch_coord, patch_size, padding_check=True)
+
+        label_to_coord_patches_dict[label].append((patch_coord, patch))
+
+    return label_to_coord_patches_dict
+
+
+def _validate_by_classification(frame,
+                                patch_coord_to_label_size_dict,
+                                label_to_classification_model_dict):
+    pass
+    # return validated_patch_coord_to_label_size_dict
+
+
+def analyse_frame(scene_tag,
+                  frame_path,
+                  label_to_segmentation_model_config_dict,
+                  label_to_classification_model_config_dict,
+                  img_ext="png",
+                  patches_output_dir=None):
+    work_dir, frame_name = os.path.split(frame_path)
     frame_base_name = frame_name.split(".%s" % img_ext)[0]
 
     frame = io.imread(frame_path)
 
     label_to_raw_mask_dict = {}
-    for label, segmentation_model_config in label_to_raw_mask_dict.items():
+    for label, segmentation_model_config in label_to_segmentation_model_config_dict.items():
         raw_mask = _get_raw_mask(frame, segmentation_model_config)
         label_to_raw_mask_dict[label] = raw_mask
         io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
-                               % (frame_base_name, img_ext)), raw_mask, label)
+                               % (frame_base_name, label, img_ext)), raw_mask * 255)
 
     label_to_postprocessed_mask_dict = {}
     for label, raw_mask in label_to_raw_mask_dict.items():
         postprocessed_mask = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
         label_to_postprocessed_mask_dict[label] = postprocessed_mask
-        io.imsave(os.path.join(work_dir, "%s_postprocessed_mask.%s"
-                               % (frame_base_name, img_ext)), postprocessed_mask, label)
+        io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
+                               % (frame_base_name, label, img_ext)), postprocessed_mask * 255)
 
     # This contains list of centroids mapped to labels
     patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
 
-    # TODO: Extract Patches and Classify the patches to get validated patch_coord_to_label_dict.
-    # patch_coord_to_label_size_dict = _validate_by_classification(frame,
-    #                                                              patch_coord_to_label_size_dict,
-    #                                                              label_to_classification_model_dict)
+    # Extract Patches and Classify the patches to get validated_patch_coord_to_label_size_dict.
+    # TODO: Update after training classifier.
+    # If 'patches_output_dir' has been provided, then just return as only the patches were required.
+    if patches_output_dir:
+        label_to_coord_patches_dict = _extract_labeled_patches(frame,
+                                                               patch_coord_to_label_size_dict,
+                                                               patch_size=256)
+        for label, coord_patches in label_to_coord_patches_dict.items():
+            for coord_patch in coord_patches:
+                coord, patch = coord_patch
+                patch_name = "%s_%s_%s_%s.%s" % (frame_base_name, label, coord[0], coord[1])
+                io.imsave(patch_name, patch)
 
-    marked_image = _get_marked_image(frame, patch_coord_to_label_size_dict, LABEL_TO_COLOR_DICT)
+        return
+
+    validated_patch_coord_to_label_size_dict = _validate_by_classification(frame,
+                                                                           patch_coord_to_label_size_dict,
+                                                                           label_to_classification_model_config_dict)
+
+    marked_image = _get_marked_image(frame, validated_patch_coord_to_label_size_dict, LABEL_TO_COLOR_DICT)
     io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
     # Format the result.
     label_to_location_sizes_dict = defaultdict(dict)
-    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
+    for patch_coord, label_size in validated_patch_coord_to_label_size_dict.items():
         label, size = label_size
         label_to_location_sizes_dict[label][patch_coord] = size
 
@@ -298,4 +404,26 @@ if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.log.upper())
 
-    analyse_regions_file(args)
+    # TODO: This assumes that the script is being run from the repository root directory.
+    with open("./trained_models/amphipod_unet_1.json") as fp:
+        amphipod_segmentation_model_config_dict = json.load(fp)
+
+    label_to_segmentation_model_config_dict = {
+        "amphipod": amphipod_segmentation_model_config_dict
+    }
+
+    if args.extract_patches_only:
+        if not args.patches_output_dir:
+            raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
+
+        for scene_tag in os.listdir(args.input_data_dir):
+            for frame_file in os.listdir(os.path.join(args.input_data_dir, scene_tag)):
+                frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
+                analyse_frame(scene_tag,
+                              frame_path,
+                              label_to_segmentation_model_config_dict,
+                              label_to_classification_model_config_dict=None,
+                              img_ext="png",
+                              patches_output_dir=args.patches_output_dir)
+    else:
+        analyse_regions_file(args)
