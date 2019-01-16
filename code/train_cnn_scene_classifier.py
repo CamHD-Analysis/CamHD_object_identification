@@ -229,8 +229,8 @@ def train_cnn(args):
                                                             seed=1)
 
     # Setup training.
-    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_acc', mode='auto', verbose=1, save_best_only=True)
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='auto')
+    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_loss', mode='auto', verbose=1, save_best_only=True)
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=0, mode='auto')
     callbacks = [model_checkpoint, early_stopping]
     if args.tensorboard_logdir:
         tensorboard = TensorBoard(log_dir=args.tensorboard_logdir)
