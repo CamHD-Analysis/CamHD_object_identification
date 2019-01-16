@@ -8,8 +8,8 @@ import models
 from collections import defaultdict
 from keras.models import load_model
 from skimage import io
-from skimage.measure import label, regionprops
-from skimage.morphology import opening, closing
+from skimage import measure
+from skimage.morphology import opening, closing, erosion, dilation
 from skimage.morphology import disk
 
 import argparse
@@ -243,8 +243,8 @@ def _get_raw_mask(frame, segmentation_model_config):
 def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
     patch_coord_to_label_size_dict = {}
     for label, mask in label_to_postprocessed_mask_dict.items():
-        label_image = label(mask)
-        for region in regionprops(label_image):
+        label_image = measure.label(mask)
+        for region in measure.regionprops(label_image):
             minr, minc, maxr, maxc = region.bbox
             bb_length = maxc - minc
             bb_width = maxr - minr
@@ -265,11 +265,11 @@ def _postprocess_mask_1(raw_mask):
     prob_thresh_1 = 0.5
     binary_mask = raw_mask > prob_thresh_1
     # After this all are binary (bool ndarray) images.
-    opened_mask = opening(binary_mask, disk(6))
-    closed_mask = closing(opened_mask, disk(6))
-    label_image = label(closed_mask)
+    opened_mask = opening(binary_mask, disk(16))
+    final_mask = opened_mask
 
-    for region in regionprops(label_image):
+    label_image = measure.label(final_mask)
+    for region in measure.regionprops(label_image):
         minr, minc, maxr, maxc = region.bbox
         bb_length = maxc - minc
         bb_width = maxr - minr
@@ -282,9 +282,9 @@ def _postprocess_mask_1(raw_mask):
             bb_width > 256 or bb_width < 64):
             # Clear the region by setting the coords to False.
             for coord in region.coords:
-                closed_mask[coord] = False
+                final_mask[coord[0], coord[1]] = False
 
-    return closed_mask
+    return final_mask
 
 
 def _postprocess_mask_2(raw_mask):
@@ -368,8 +368,13 @@ def analyse_frame(scene_tag,
         for label, coord_patches in label_to_coord_patches_dict.items():
             for coord_patch in coord_patches:
                 coord, patch = coord_patch
-                patch_name = "%s_%s_%s_%s.%s" % (frame_base_name, label, coord[0], coord[1])
-                io.imsave(patch_name, patch)
+                patch_name = "%s_%s_%s_%s.%s" % (frame_base_name, label, coord[0], coord[1], img_ext)
+                patch_path = os.path.join(patches_output_dir, patch_name)
+                try:
+                    io.imsave(patch_path, patch)
+                except:
+                    # TODO: Try to find the reason and avoid this case.
+                    logging.exception("Couldn't save: %s" % patch_path)
 
         return
 
@@ -405,7 +410,7 @@ def analyse_frame(scene_tag,
 
 
 def analyse_regions_file(args):
-    if not args.lazycache:
+    if not args.lazycache:broad catch-all. It is suitable for some code path where you know the block of code (i.e, main_loop()) can raise a number of exceptions you m
         raise ValueError("The lazycache-url could not be found.")
 
     pass
