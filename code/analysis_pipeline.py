@@ -410,7 +410,7 @@ def analyse_frame(scene_tag,
 
 
 def analyse_regions_file(args):
-    if not args.lazycache:broad catch-all. It is suitable for some code path where you know the block of code (i.e, main_loop()) can raise a number of exceptions you m
+    if not args.lazycache:
         raise ValueError("The lazycache-url could not be found.")
 
     pass
