@@ -7,6 +7,7 @@ import models
 
 from collections import defaultdict
 from keras.models import load_model
+from scipy.ndimage.morphology import binary_fill_holes
 from skimage import io
 from skimage import measure
 from skimage.morphology import opening, closing, erosion, dilation
@@ -18,6 +19,10 @@ import json
 import logging
 import numpy as np
 import os
+
+# Use below code to force execute on CPU instead of GPU.
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 FRAME_RESOLUTION = (1080, 1920)
 
@@ -228,7 +233,6 @@ def _get_raw_mask(frame, segmentation_model_config):
         row_stitched_masks.append(ri_stitched_mask)
 
     padded_stitched_mask = np.vstack(row_stitched_masks)
-
     adjusted_stitched_mask = _crop_center(padded_stitched_mask,
                                           adjusted_frame.shape[1],
                                           adjusted_frame.shape[0])
@@ -243,6 +247,7 @@ def _get_raw_mask(frame, segmentation_model_config):
 def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
     patch_coord_to_label_size_dict = {}
     for label, mask in label_to_postprocessed_mask_dict.items():
+        mask = mask >= 255
         label_image = measure.label(mask)
         for region in measure.regionprops(label_image):
             minr, minc, maxr, maxc = region.bbox
@@ -262,11 +267,14 @@ def _get_marked_image(frame, patch_coord_to_label_size_dict, label_to_color_dict
 
 # Utility functions of analyse_frame function: Postprocess functions:
 def _postprocess_mask_1(raw_mask):
-    prob_thresh_1 = 0.5
+    raw_mask = raw_mask / 255
+    prob_thresh_1 = 0.80
     binary_mask = raw_mask > prob_thresh_1
-    # After this all are binary (bool ndarray) images.
-    opened_mask = opening(binary_mask, disk(16))
-    final_mask = opened_mask
+    # After this, all are binary (bool ndarray) images.
+    #p_mask = binary_fill_holes(binary_mask)
+    #p_mask = opening(binary_mask, disk(3))
+    p_mask = dilation(binary_mask, disk(3))
+    final_mask = p_mask
 
     label_image = measure.label(final_mask)
     for region in measure.regionprops(label_image):
@@ -278,13 +286,13 @@ def _postprocess_mask_1(raw_mask):
         # We don't know the min and max size of amphipods. So putting restrictions based on
         # the analysis pipeline structure, where square patch extraction is the next step.
         # Currently, restricting the working objects to stay within a bounding box of 64 to 256.
-        if (bb_length > 256 or bb_length < 64 or
-            bb_width > 256 or bb_width < 64):
+        if (bb_length > 256 or bb_length < 48 or
+            bb_width > 256 or bb_width < 48):
             # Clear the region by setting the coords to False.
             for coord in region.coords:
                 final_mask[coord[0], coord[1]] = False
 
-    return final_mask
+    return final_mask * 255
 
 
 def _postprocess_mask_2(raw_mask):
@@ -301,9 +309,9 @@ def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=2
     label_to_coord_patches_dict = defaultdict(list)
     for patch_coord, label_size in patch_coord_to_label_size_dict.items():
         label, region_size = label_size
-        if (region_size.bb_length < patch_size // 2 or
+        if (region_size.bb_length < patch_size // 2 and
             region_size.bb_width < patch_size // 2):
-            unpadded_patch = get_patch(frame, patch_coord, patch_size // 2, padding_check=True)
+            unpadded_patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size // 2, padding_check=True)
             pad_size = patch_size // 2
             patch = cv2.copyMakeBorder(unpadded_patch,
                                        top=pad_size,
@@ -313,7 +321,7 @@ def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=2
                                        borderType=cv2.BORDER_CONSTANT,
                                        value=0)
         else:
-            patch = get_patch(frame, patch_coord, patch_size, padding_check=True)
+            patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size, padding_check=True)
 
         label_to_coord_patches_dict[label].append((patch_coord, patch))
 
@@ -345,7 +353,7 @@ def analyse_frame(scene_tag,
         label_to_raw_mask_dict[label] = raw_mask
         if not no_write:
             io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
-                                   % (frame_base_name, label, img_ext)), raw_mask * 255)
+                                   % (frame_base_name, label, img_ext)), raw_mask)
 
     label_to_postprocessed_mask_dict = {}
     for label, raw_mask in label_to_raw_mask_dict.items():
@@ -353,7 +361,7 @@ def analyse_frame(scene_tag,
         label_to_postprocessed_mask_dict[label] = postprocessed_mask
         if not no_write:
             io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
-                                   % (frame_base_name, label, img_ext)), postprocessed_mask * 255)
+                                   % (frame_base_name, label, img_ext)), postprocessed_mask)
 
     # This contains list of centroids mapped to labels
     patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
