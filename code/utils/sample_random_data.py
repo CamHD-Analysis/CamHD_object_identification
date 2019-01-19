@@ -70,7 +70,6 @@ def get_args():
     return args
 
 
-
 def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, width, height):
     def _sample_prob(prob):
         """
