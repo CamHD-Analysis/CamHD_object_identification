@@ -23,8 +23,10 @@ import shutil
 
 
 # TODO: This could be generalized once the script allows multiple types of models by reading form model_config.
-TARGET_SIZE = (128, 128, 3)
+TARGET_SIZE = (256, 256, 3)
+
 SCENE_TAGS_CLASSIFICATION_SPEC_STRING = "SCENE_TAGS"
+SCENE_TAGS_PLAIN_WATER_CLASSIFICATION_SPEC_STRING = "SCENE_TAGS_PLAIN_WATER"
 
 # TODO: Keep this logic at one place.
 # Standard CamHD scene_tags.
@@ -54,10 +56,36 @@ SCENE_TAGS = [
     'p8_z1'
 ]
 
+SCENE_TAGS_PLAIN_WATER = [
+    'p0_z0',
+    'p0_z1',
+    'p0_z2',
+    'p1_z0',
+    'p1_z1',
+    'p2_z0',
+    'plain_water', # 'p2_z1' and 'p4_z2'
+    'p3_z0',
+    'p3_z1',
+    'p3_z2',
+    'p4_z0',
+    'p4_z1',
+    # 'p4_z2',
+    'p5_z0',
+    'p5_z1',
+    'p5_z2',
+    'p6_z0',
+    'p6_z1',
+    'p6_z2',
+    'p7_z0',
+    'p7_z1',
+    'p8_z0',
+    'p8_z1'
+]
+
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Run the Training Pipeline. Currently supports only Unet.")
+    parser = argparse.ArgumentParser(description="Run the Training Pipeline for scene_tag classification.")
     parser.add_argument('--func',
                         required=True,
                         help="Specify the function to be called. The available list of functions: ['train_cnn', 'test_cnn'].")
@@ -69,8 +97,9 @@ def get_args():
     parser.add_argument('--classes',
                         required=True,
                         help="The set of classes to be considered. Provide comma separated string. "
-                             "Specify '%s' to classify the standard scene_tags in CamHD."
-                             % SCENE_TAGS_CLASSIFICATION_SPEC_STRING)
+                             "Specify '%s' to classify the standard scene_tags in CamHD. "
+                             "Specify '%s' for scene_tags 'p2_z1' and 'p4_z2' considered as plain_water."
+                             % (SCENE_TAGS_CLASSIFICATION_SPEC_STRING, SCENE_TAGS_PLAIN_WATER_CLASSIFICATION_SPEC_STRING))
     parser.add_argument('--deployment',
                         help="Must be provided if classes is '%s'. Specify the deployment version to be "
                              "prefixed to the standard scene_tags."
@@ -217,7 +246,7 @@ def train_cnn(args):
                                                         color_mode="rgb",
                                                         class_mode='categorical',
                                                         classes=args.classes,
-                                                        seed=1)
+                                                        seed=3)
 
     # This is a similar generator, for validation data.
     validation_generator = test_datagen.flow_from_directory(val_dir,
@@ -226,11 +255,11 @@ def train_cnn(args):
                                                             color_mode="rgb",
                                                             class_mode='categorical',
                                                             classes=args.classes,
-                                                            seed=1)
+                                                            seed=3)
 
     # Setup training.
-    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_loss', mode='auto', verbose=1, save_best_only=True)
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=0, mode='auto')
+    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_acc', mode='auto', verbose=1, save_best_only=True)
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=0, mode='auto')
     callbacks = [model_checkpoint, early_stopping]
     if args.tensorboard_logdir:
         tensorboard = TensorBoard(log_dir=args.tensorboard_logdir)
@@ -256,12 +285,14 @@ if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.log.upper())
 
-    if args.classes == SCENE_TAGS_CLASSIFICATION_SPEC_STRING:
+    if args.classes in (SCENE_TAGS_CLASSIFICATION_SPEC_STRING, SCENE_TAGS_PLAIN_WATER_CLASSIFICATION_SPEC_STRING):
         if not args.deployment:
-            raise ValueError("The --deployment needs to be provided since the classes provided is %s"
-                             % SCENE_TAGS_CLASSIFICATION_SPEC_STRING)
+            raise ValueError("The --deployment needs to be provided since the classes provided is %s" % args.classes)
 
-        args.classes = ["%s_%s" % (args.deployment, x) for x in SCENE_TAGS]
+        if args.classes == SCENE_TAGS_CLASSIFICATION_SPEC_STRING:
+            args.classes = ["%s_%s" % (args.deployment, x) for x in SCENE_TAGS]
+        else:
+            args.classes = ["%s_%s" % (args.deployment, x) for x in SCENE_TAGS_PLAIN_WATER]
 
     if args.func == "train_cnn":
         train_cnn(args)

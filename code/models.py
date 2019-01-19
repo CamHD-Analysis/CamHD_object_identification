@@ -175,47 +175,47 @@ def vgg16_custom(num_classes, input_size, batch_norm=True, pretrained_weights=No
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
-    model.add(Conv2D(64, (3, 3), padding='same', name='block1_conv2'))
+    model.add(Conv2D(32, (3, 3), padding='same', name='block1_conv2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
     model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block1_pool'))
 
-    model.add(Conv2D(128, (3, 3), padding='same', name='block2_conv1'))
+    model.add(Conv2D(64, (3, 3), padding='same', name='block2_conv1'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
-    model.add(Conv2D(128, (3, 3), padding='same', name='block2_conv2'))
+    model.add(Conv2D(64, (3, 3), padding='same', name='block2_conv2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
     model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block2_pool'))
 
-    model.add(Conv2D(256, (3, 3), padding='same', name='block3_conv1'))
+    model.add(Conv2D(128, (3, 3), padding='same', name='block3_conv1'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
-    model.add(Conv2D(256, (3, 3), padding='same', name='block3_conv2'))
+    model.add(Conv2D(128, (3, 3), padding='same', name='block3_conv2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
     model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block3_pool'))
 
-    model.add(Conv2D(512, (3, 3), padding='same', name='block4_conv1'))
+    model.add(Conv2D(256, (3, 3), padding='same', name='block4_conv1'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
-    model.add(Conv2D(512, (3, 3), padding='same', name='block4_conv2'))
+    model.add(Conv2D(256, (3, 3), padding='same', name='block4_conv2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
     model.add(MaxPooling2D((2, 2), strides=(2, 2), name='block4_pool'))
 
-    model.add(Conv2D(1024, (3, 3), padding='same', name='block5_conv1'))
+    model.add(Conv2D(512, (3, 3), padding='same', name='block5_conv1'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
-    model.add(Conv2D(1024, (3, 3), padding='same', name='block5_conv2'))
+    model.add(Conv2D(512, (3, 3), padding='same', name='block5_conv2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
 
@@ -223,12 +223,12 @@ def vgg16_custom(num_classes, input_size, batch_norm=True, pretrained_weights=No
 
     model.add(Flatten())
 
-    model.add(Dense(2048, name='fc1'))
+    model.add(Dense(1024, name='fc1'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
 
-    model.add(Dense(4096, name='fc2'))
+    model.add(Dense(2048, name='fc2'))
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('relu'))
     model.add(Dropout(0.5))
