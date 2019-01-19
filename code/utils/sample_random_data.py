@@ -36,6 +36,14 @@ def get_args():
     parser.add_argument('--output',
                         required=True,
                         help="The path to the folder where the sampled frames need to be written.")
+    parser.add_argument('--width',
+                        type=int,
+                        default=1920,
+                        help="The width of frames required. Default: 1920.")
+    parser.add_argument('--height',
+                        type=int,
+                        default=1080,
+                        help="The height of frames required. Default: 1080.")
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -63,7 +71,7 @@ def get_args():
 
 
 
-def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob):
+def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, width, height):
     def _sample_prob(prob):
         """
         Returns True or False based on the given probability. Bernoille trial with given probability.
@@ -91,7 +99,7 @@ def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob):
         sample_frame_path = os.path.join(img_path, "%s_%d.%s"
                                          % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
         logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
-        img = qt.get_frame(url, sample_frame, format=img_ext)
+        img = qt.get_frame(url, sample_frame, format=img_ext, width=width, height=height)
         img.save(sample_frame_path)
 
 
@@ -111,7 +119,14 @@ def sample_random_frames(args):
         for scene in args.scenes:
             output_path = os.path.join(args.output, scene)
             os.makedirs(output_path, exist_ok=True)
-            _get_random_frames(regions_file, output_path, args.qt, args.img_ext, scene, args.prob)
+            _get_random_frames(regions_file,
+                               output_path,
+                               args.qt,
+                               args.img_ext,
+                               scene,
+                               args.prob,
+                               args.width,
+                               args.height)
 
 
     for pathin in args.input:
