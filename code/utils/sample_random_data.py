@@ -27,7 +27,6 @@ def get_args():
                         nargs='*',
                         help='Files or paths to process.')
     parser.add_argument('--scenes',
-                        required=True,
                         help="The set of scenes for which random frames need to be sampled. Provide comma separated string.")
     parser.add_argument('--prob',
                         type=float,
@@ -44,6 +43,10 @@ def get_args():
                         type=int,
                         default=1080,
                         help="The height of frames required. Default: 1080.")
+    parser.add_argument('--unclassified-regions',
+                        action='store_true',
+                        help="Set this flag to sample all frames and thumbnail from unclassified region files. "
+                             "This is useful to create the images data required for proofsheet creation.")
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -62,12 +65,33 @@ def get_args():
     args.qt = camhd.lazycache(args.lazycache)
 
     # Scene parsing.
-    args.scenes = [x.strip() for x in args.scenes.split(",")]
+    if not args.scenes and not args.unclassified_regions:
+        raise ValueError("The 'scenes' argument is required if the 'unclassified-regions' flag is not set.")
+
+    if args.scenes:
+        args.scenes = [x.strip() for x in args.scenes.split(",")]
 
     if os.path.exists(args.output):
         raise ValueError("The given output path already exists. Please provide a new output path: %s" % args.output)
 
     return args
+
+
+def _get_all_frames(regions_file, img_path, qt, img_ext, width, height, include_thumbnail=True):
+    for region in regions_file.static_regions():
+        url = regions_file.mov
+        sample_frame = region.start_frame + 0.5 * (region.end_frame - region.start_frame)
+        sample_frame_path = os.path.join(img_path, "%s_%d.%s"
+                                         % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
+        logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
+        img = qt.get_frame(url, sample_frame, format=img_ext, width=width, height=height)
+        img.save(sample_frame_path)
+        if include_thumbnail:
+            thumbnail_size = (320, 240)
+            thumb_file_path = os.path.join(img_path, "%s_%d_thumbnail.%s"
+                                           % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
+            img.thumbnail(thumbnail_size)
+            img.save(thumb_file_path)
 
 
 def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, width, height):
@@ -114,6 +138,11 @@ def sample_random_frames(args):
 
         logging.info("Sampling the frames from regions file: {}".format(infile))
         regions_file = mmd.RegionFile.load(infile)
+
+        if args.unclassified_regions:
+            os.makedirs(args.output, exist_ok=True)
+            _get_all_frames(regions_file, args.output, args.qt, args.img_ext, args.width, args.height)
+            return
 
         for scene in args.scenes:
             output_path = os.path.join(args.output, scene)
