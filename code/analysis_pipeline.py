@@ -305,11 +305,12 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
 }
 
 
-def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=256):
+def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=256, adjust_patch_size=False):
     label_to_coord_patches_dict = defaultdict(list)
     for patch_coord, label_size in patch_coord_to_label_size_dict.items():
         label, region_size = label_size
-        if (region_size.bb_length < patch_size // 2 and
+        if (adjust_patch_size and
+            region_size.bb_length < patch_size // 2 and
             region_size.bb_width < patch_size // 2):
             unpadded_patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size // 2, padding_check=True)
             pad_size = patch_size // 2
@@ -384,6 +385,7 @@ def analyse_frame(scene_tag,
                     # TODO: Try to find the reason and avoid this case.
                     logging.exception("Couldn't save: %s" % patch_path)
 
+        logging.info("The patches have been extracted from: %s" % frame_path)
         return
 
     validated_patch_coord_to_label_size_dict = _validate_by_classification(frame,
@@ -414,6 +416,7 @@ def analyse_frame(scene_tag,
     with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
         json.dump(result_dict, fp)
 
+    logging.info("The frame has been analysed: %s" % frame_path)
     return result_dict
 
 
