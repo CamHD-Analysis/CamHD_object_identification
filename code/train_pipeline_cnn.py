@@ -28,7 +28,7 @@ TARGET_SIZE = (256, 256, 3)
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Run the Training Pipeline. Currently supports only Unet.")
+    parser = argparse.ArgumentParser(description="Run the Training Pipeline for training CNN models.")
     parser.add_argument('--func',
                         required=True,
                         help="Specify the function to be called. The available list of functions: ['train_cnn', 'test_cnn'].")
@@ -39,7 +39,7 @@ def get_args():
                              "Valid for functions: 'train_cnn'.")
     parser.add_argument('--classes',
                         required=True,
-                        help="The set of classes to be considered. Provide comma separated string. ")
+                        help="The set of classes to be considered. Provide comma separated string.")
     parser.add_argument('--val-split',
                         type=float,
                         default=0.20,
@@ -200,8 +200,8 @@ def train_cnn(args):
                                                             seed=1)
 
     # Setup training.
-    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_loss', mode='auto', verbose=1, save_best_only=True)
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=10, verbose=0, mode='auto')
+    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_acc', mode='auto', verbose=1, save_best_only=True)
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=0, mode='auto')
     callbacks = [model_checkpoint, early_stopping]
     if args.tensorboard_logdir:
         tensorboard = TensorBoard(log_dir=args.tensorboard_logdir)
@@ -226,7 +226,7 @@ def test_cnn(args):
 if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.log.upper())
-
+    args.classes = args.classes.split(",")
     if args.func == "train_cnn":
         train_cnn(args)
     elif args.func == "test_cnn":

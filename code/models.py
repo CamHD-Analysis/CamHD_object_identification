@@ -314,7 +314,7 @@ def cnn_amphipod(num_classes, input_size, batch_norm=True, pretrained_weights=No
     model.add(BatchNormalization()) if batch_norm else None
     model.add(Activation('softmax'))
 
-    model.compile(optimizer=Adam(lr=0.0001), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
     if(pretrained_weights):
         model.load_weights(pretrained_weights)
