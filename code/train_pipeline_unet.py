@@ -9,7 +9,7 @@ TODO: Currently the selected models are persisted as a model_config after the tr
 
 from models import unet
 from data_prep import train_generator
-from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 from skimage import io
 
 import argparse
@@ -161,7 +161,8 @@ def train_unet(args):
 
     model = unet()
     model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_loss', mode='auto', verbose=1, save_best_only=True)
-    callbacks = [model_checkpoint]
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=0, mode='auto')
+    callbacks = [model_checkpoint, early_stopping]
     if args.tensorboard_logdir:
         tensorboard = TensorBoard(log_dir=args.tensorboard_logdir)
         logging.info("To view tensorboard, run: 'tensorboard --logdir=%s'" % args.tensorboard_logdir)
