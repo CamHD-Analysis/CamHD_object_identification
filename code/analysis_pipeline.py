@@ -136,6 +136,20 @@ def get_patch(img, center_coord, patch_size, padding_check=True):
     return patch
 
 
+def _get_tf_model(model_config):
+    model_path = os.path.join(TRAINED_MODELS_DIR, model_config["model_path"])
+    if model_path not in MODEL_CACHE:
+        if "load_model_arch" in model_config:
+            model = getattr(models, model_config["load_model_arch"])()
+            model.load_weights(model_path)
+            MODEL_CACHE[model_path] = model
+        else:
+            model = load_model(model_path)
+            MODEL_CACHE[model_path] = model
+
+    return MODEL_CACHE[model_path]
+
+
 def _invoke_unet(patch, model, mask_index):
     patch = np.reshape(patch, (1,) + patch.shape)
     pred_mask = model.predict(patch)
@@ -143,6 +157,16 @@ def _invoke_unet(patch, model, mask_index):
     pred_mask = pred_mask.astype(np.uint8)
     pred_mask = np.reshape(pred_mask, pred_mask.shape[:-1])
     return pred_mask
+
+
+def _invoke_cnn(patch, model, class_labels):
+    patch = np.reshape(patch, (1,) + patch.shape)
+    pred_probas = model.predict(patch)
+    pred_classes = np.argmax(pred_probas, axis=1)
+    # We have only one input image.
+    pred_class = pred_classes[0]
+    pred_class_label = class_labels[pred_class]
+    return pred_class_label
 
 
 # Utility functions of analyse_frame function.
@@ -203,17 +227,7 @@ def _get_raw_mask(frame, segmentation_model_config):
 
     # TODO: Standardize the model definition.
     # Invoke and stitch mask
-    model_path = os.path.join(TRAINED_MODELS_DIR, segmentation_model_config["model_path"])
-    if model_path not in MODEL_CACHE:
-        if "load_model_arch" in segmentation_model_config:
-            model = getattr(models, segmentation_model_config["load_model_arch"])()
-            model.load_weights(model_path)
-            MODEL_CACHE[model_path] = model
-        else:
-            model = load_model(model_path)
-            MODEL_CACHE[model_path] = model
-
-    model = MODEL_CACHE[model_path]
+    model = _get_tf_model(segmentation_model_config)
 
     mask_index = segmentation_model_config["mask_index"]
 
@@ -305,10 +319,19 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
 }
 
 
-def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=256, adjust_patch_size=False):
+def _extract_labeled_patches(frame,
+                             patch_coord_to_label_size_dict,
+                             patch_size=256,
+                             adjust_patch_size=False,
+                             label_to_model_config_dict=None):
+    # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
     label_to_coord_patches_dict = defaultdict(list)
     for patch_coord, label_size in patch_coord_to_label_size_dict.items():
         label, region_size = label_size
+        if label_to_model_config_dict:
+            patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
+            adjust_patch_size = label_to_model_config_dict[label]["adjust_patch_size"]
+
         if (adjust_patch_size and
             region_size.bb_length < patch_size // 2 and
             region_size.bb_width < patch_size // 2):
@@ -331,9 +354,23 @@ def _extract_labeled_patches(frame, patch_coord_to_label_size_dict, patch_size=2
 
 def _validate_by_classification(frame,
                                 patch_coord_to_label_size_dict,
-                                label_to_classification_model_dict):
-    pass
-    # return validated_patch_coord_to_label_size_dict
+                                label_to_model_config_dict):
+    validated_patch_coord_to_label_size_dict = {}
+    label_to_coord_patches_dict = _extract_labeled_patches(frame,
+                                                           patch_coord_to_label_size_dict,
+                                                           label_to_model_config_dict=label_to_model_config_dict)
+    for label, coord_patches in label_to_coord_patches_dict.items():
+        cur_model_config = label_to_model_config_dict[label]
+        cur_model = _get_tf_model(cur_model_config)
+        cur__class_labels = cur_model_config["classes"]
+        for coord_patch in coord_patches:
+            coord, patch = coord_patch
+            pred_label = _invoke_cnn(patch, cur_model, cur__class_labels)
+            if pred_label == cur_model_config["valid_class"]:
+                validated_patch_coord_to_label_size_dict[coord] = patch_coord_to_label_size_dict[coord]
+
+    logging.info("The patches have been validated using the provided classification models.")
+    return validated_patch_coord_to_label_size_dict
 
 
 def analyse_frame(scene_tag,
