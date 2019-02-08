@@ -274,11 +274,6 @@ def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
     return patch_coord_to_label_size_dict
 
 
-def _get_marked_image(frame, patch_coord_to_label_size_dict, label_to_color_dict):
-    # return marked_image
-    pass
-
-
 # Utility functions of analyse_frame function: Postprocess functions:
 def _postprocess_mask_1(raw_mask):
     raw_mask = raw_mask / 255
@@ -365,12 +360,33 @@ def _validate_by_classification(frame,
         cur__class_labels = cur_model_config["classes"]
         for coord_patch in coord_patches:
             coord, patch = coord_patch
+            if cur_model_config.get("rescale", True):
+                patch = patch * (1.0 / 255)
+
             pred_label = _invoke_cnn(patch, cur_model, cur__class_labels)
             if pred_label == cur_model_config["valid_class"]:
                 validated_patch_coord_to_label_size_dict[coord] = patch_coord_to_label_size_dict[coord]
 
     logging.info("The patches have been validated using the provided classification models.")
     return validated_patch_coord_to_label_size_dict
+
+
+def _get_marked_image(frame,
+                      patch_coord_to_label_size_dict,
+                      label_to_color_dict,
+                      patch_size=256,
+                      label_to_model_config_dict=None,
+                      thickness=2):
+    # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
+    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
+        label, _ = label_size
+        color = label_to_color_dict[label]
+        patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
+        top_left_coord = (patch_coord[0] - (patch_size // 2), patch_coord[1] - (patch_size // 2))
+        bottom_right_coord = (patch_coord[0] + (patch_size // 2), patch_coord[1] + (patch_size // 2))
+        cv2.rectangle(frame, top_left_coord, bottom_right_coord, color, 2)
+
+    return frame
 
 
 def analyse_frame(scene_tag,
@@ -476,6 +492,14 @@ if __name__ == "__main__":
         "amphipod": amphipod_segmentation_model_config_dict
     }
 
+    # TODO: This assumes that the script is being run from the repository root directory.
+    with open("./trained_models/amphipod_cnn_1.json") as fp:
+        amphipod_classification_model_config_dict = json.load(fp)
+
+    label_to_classification_model_config_dict = {
+        "amphipod": amphipod_classification_model_config_dict
+    }
+
     if args.extract_patches_only:
         if not args.patches_output_dir:
             raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
@@ -486,7 +510,7 @@ if __name__ == "__main__":
                 analyse_frame(scene_tag,
                               frame_path,
                               label_to_segmentation_model_config_dict,
-                              label_to_classification_model_config_dict=None,
+                              label_to_classification_model_config_dict=label_to_classification_model_config_dict,
                               img_ext="png",
                               patches_output_dir=args.patches_output_dir,
                               no_write=False)
