@@ -9,5 +9,9 @@
         "amphipod",
         "nonamphipod"
     ],
+    "prob_thresholds": {
+        "amphipod": 0.7,
+        "nonamphipod": 0.3
+    },
     "adjust_patch_size": true
 }

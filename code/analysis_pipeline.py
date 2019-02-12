@@ -384,7 +384,8 @@ def _validate_by_classification(frame,
 
             pred_label, pred_proba = _invoke_cnn(patch, cur_model, cur_class_labels)
             logging.info("Classification for %s: %s (%.2f)" % (patch_name, pred_label, pred_proba))
-            if pred_label == cur_model_config["valid_class"]:
+            valid_label = cur_model_config["valid_class"]
+            if pred_label == valid_label and pred_proba >= cur_model_config["prob_thresholds"][valid_label]:
                 validated_patch_coord_to_label_size_dict[coord] = patch_coord_to_label_size_dict[coord]
 
     logging.info("The patches have been validated using the provided classification models.")
@@ -398,9 +399,14 @@ def _get_marked_image(frame,
                       thickness=2):
     # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
     for patch_coord, label_size in patch_coord_to_label_size_dict.items():
-        label, _ = label_size
+        label, region_size = label_size
         color = label_to_color_dict[label]
         patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
+
+        # Adjust the bounding box size according the region_size.
+        if region_size.bb_length < patch_size // 2 and region_size.bb_width < patch_size // 2:
+            patch_size = patch_size // 2
+
         top_left_coord = (patch_coord[1] - (patch_size // 2), patch_coord[0] - (patch_size // 2))
         bottom_right_coord = (patch_coord[1] + (patch_size // 2), patch_coord[0] + (patch_size // 2))
         cv2.rectangle(frame, top_left_coord, bottom_right_coord, color, thickness)
