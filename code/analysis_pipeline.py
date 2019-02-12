@@ -110,6 +110,12 @@ def _is_sharp(img, scene_tag):
     return False
 
 
+
+def get_json_serializable(o):
+    if isinstance(o, np.int64): return int(o)
+    raise TypeError
+
+
 class RegionSize(object):
     def __init__(self, area, bb_length, bb_width):
         self.area = area
@@ -164,9 +170,10 @@ def _invoke_cnn(patch, model, class_labels):
     pred_probas = model.predict(patch)
     pred_classes = np.argmax(pred_probas, axis=1)
     # We have only one input image.
+    pred_proba = max(pred_probas[0])
     pred_class = pred_classes[0]
     pred_class_label = class_labels[pred_class]
-    return pred_class_label
+    return pred_class_label, pred_proba
 
 
 # Utility functions of analyse_frame function.
@@ -331,7 +338,7 @@ def _extract_labeled_patches(frame,
             region_size.bb_length < patch_size // 2 and
             region_size.bb_width < patch_size // 2):
             unpadded_patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size // 2, padding_check=True)
-            pad_size = patch_size // 2
+            pad_size = (patch_size // 2) // 2
             patch = cv2.copyMakeBorder(unpadded_patch,
                                        top=pad_size,
                                        bottom=pad_size,
@@ -349,7 +356,10 @@ def _extract_labeled_patches(frame,
 
 def _validate_by_classification(frame,
                                 patch_coord_to_label_size_dict,
-                                label_to_model_config_dict):
+                                label_to_model_config_dict,
+                                frame_base_name,
+                                patches_output_dir=None,
+                                img_ext="png"):
     validated_patch_coord_to_label_size_dict = {}
     label_to_coord_patches_dict = _extract_labeled_patches(frame,
                                                            patch_coord_to_label_size_dict,
@@ -357,13 +367,23 @@ def _validate_by_classification(frame,
     for label, coord_patches in label_to_coord_patches_dict.items():
         cur_model_config = label_to_model_config_dict[label]
         cur_model = _get_tf_model(cur_model_config)
-        cur__class_labels = cur_model_config["classes"]
+        cur_class_labels = cur_model_config["classes"]
         for coord_patch in coord_patches:
             coord, patch = coord_patch
             if cur_model_config.get("rescale", True):
                 patch = patch * (1.0 / 255)
 
-            pred_label = _invoke_cnn(patch, cur_model, cur__class_labels)
+            patch_name = "%s_%s_%s_%s.%s" % (frame_base_name, label, coord[0], coord[1], img_ext)
+            if patches_output_dir:
+                patch_path = os.path.join(patches_output_dir, patch_name)
+                try:
+                    io.imsave(patch_path, patch)
+                except:
+                    # TODO: Try to find the reason and avoid this case.
+                    logging.exception("Couldn't save: %s" % patch_path)
+
+            pred_label, pred_proba = _invoke_cnn(patch, cur_model, cur_class_labels)
+            logging.info("Classification for %s: %s (%.2f)" % (patch_name, pred_label, pred_proba))
             if pred_label == cur_model_config["valid_class"]:
                 validated_patch_coord_to_label_size_dict[coord] = patch_coord_to_label_size_dict[coord]
 
@@ -374,17 +394,16 @@ def _validate_by_classification(frame,
 def _get_marked_image(frame,
                       patch_coord_to_label_size_dict,
                       label_to_color_dict,
-                      patch_size=256,
-                      label_to_model_config_dict=None,
+                      label_to_model_config_dict,
                       thickness=2):
     # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
     for patch_coord, label_size in patch_coord_to_label_size_dict.items():
         label, _ = label_size
         color = label_to_color_dict[label]
         patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
-        top_left_coord = (patch_coord[0] - (patch_size // 2), patch_coord[1] - (patch_size // 2))
-        bottom_right_coord = (patch_coord[0] + (patch_size // 2), patch_coord[1] + (patch_size // 2))
-        cv2.rectangle(frame, top_left_coord, bottom_right_coord, color, 2)
+        top_left_coord = (patch_coord[1] - (patch_size // 2), patch_coord[0] - (patch_size // 2))
+        bottom_right_coord = (patch_coord[1] + (patch_size // 2), patch_coord[0] + (patch_size // 2))
+        cv2.rectangle(frame, top_left_coord, bottom_right_coord, color, thickness)
 
     return frame
 
@@ -395,6 +414,7 @@ def analyse_frame(scene_tag,
                   label_to_classification_model_config_dict,
                   img_ext="png",
                   patches_output_dir=None,
+                  extract_patches_only=False,
                   no_write=False):
     work_dir, frame_name = os.path.split(frame_path)
     frame_base_name = frame_name.split(".%s" % img_ext)[0]
@@ -420,13 +440,17 @@ def analyse_frame(scene_tag,
     # This contains list of centroids mapped to labels
     patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
 
-    # Extract Patches and Classify the patches to get validated_patch_coord_to_label_size_dict.
-    # TODO: Update after training classifier.
     # If 'patches_output_dir' has been provided, then just return as only the patches were required.
-    if patches_output_dir:
+    if extract_patches_only:
+        if not os.path.exists(patches_output_dir):
+            raise ValueError("The patches-output-dir must be provided when extract-patches-only argument is provided.")
+
+        logging.info("Extracting the patches only as the 'extract-patches-only' argument has been provided. "
+                     "The extracted patches will not have patch_size = 256, and adjust_patch_size = False.")
         label_to_coord_patches_dict = _extract_labeled_patches(frame,
                                                                patch_coord_to_label_size_dict,
-                                                               patch_size=256)
+                                                               patch_size=256,
+                                                               adjust_patch_size=False)
         for label, coord_patches in label_to_coord_patches_dict.items():
             for coord_patch in coord_patches:
                 coord, patch = coord_patch
@@ -441,11 +465,18 @@ def analyse_frame(scene_tag,
         logging.info("The patches have been extracted from: %s" % frame_path)
         return
 
+    # Extract Patches and Classify the patches to get validated_patch_coord_to_label_size_dict.
     validated_patch_coord_to_label_size_dict = _validate_by_classification(frame,
                                                                            patch_coord_to_label_size_dict,
-                                                                           label_to_classification_model_config_dict)
+                                                                           label_to_classification_model_config_dict,
+                                                                           frame_base_name,
+                                                                           patches_output_dir=patches_output_dir,
+                                                                           img_ext=img_ext)
 
-    marked_image = _get_marked_image(frame, validated_patch_coord_to_label_size_dict, LABEL_TO_COLOR_DICT)
+    marked_image = _get_marked_image(frame,
+                                     validated_patch_coord_to_label_size_dict,
+                                     LABEL_TO_COLOR_DICT,
+                                     label_to_classification_model_config_dict)
     if not no_write:
         io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
@@ -453,7 +484,9 @@ def analyse_frame(scene_tag,
     label_to_location_sizes_dict = defaultdict(dict)
     for patch_coord, label_size in validated_patch_coord_to_label_size_dict.items():
         label, size = label_size
-        label_to_location_sizes_dict[label][patch_coord] = size
+        # XXX: Converting patch coord to string as JSON cannot handle tuple in dictionary keys.
+        # XXX: To convert back to tuple, use: `t = tuple([int(x) for x in t_s.lstrip("(").rstrip(")").split(",")])`
+        label_to_location_sizes_dict[label][str(patch_coord)] = size.area
 
     label_to_counts_dict = {}
     for label, location_sizes in label_to_location_sizes_dict.items():
@@ -466,8 +499,9 @@ def analyse_frame(scene_tag,
         "counts": label_to_counts_dict,
         "location_sizes": label_to_location_sizes_dict
     }
+
     with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
-        json.dump(result_dict, fp)
+        json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
 
     logging.info("The frame has been analysed: %s" % frame_path)
     return result_dict
@@ -493,16 +527,23 @@ if __name__ == "__main__":
     }
 
     # TODO: This assumes that the script is being run from the repository root directory.
-    with open("./trained_models/amphipod_cnn_1.json") as fp:
+    with open("./trained_models/amphipod_cnn-v0.1.json") as fp:
         amphipod_classification_model_config_dict = json.load(fp)
 
     label_to_classification_model_config_dict = {
         "amphipod": amphipod_classification_model_config_dict
     }
 
-    if args.extract_patches_only:
-        if not args.patches_output_dir:
-            raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
+    if args.regions_file:
+        if not os.path.exists(args.regions_file):
+            raise ValueError("The regions-file does not exist: %s" % args.regions_file)
+
+        logging.info("Analysing the regions file: %s" % args.regions_file)
+        analyse_regions_file(args)
+    else:
+        if args.extract_patches_only:
+            if not args.patches_output_dir:
+                raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
 
         for scene_tag in os.listdir(args.input_data_dir):
             for frame_file in os.listdir(os.path.join(args.input_data_dir, scene_tag)):
@@ -513,6 +554,5 @@ if __name__ == "__main__":
                               label_to_classification_model_config_dict=label_to_classification_model_config_dict,
                               img_ext="png",
                               patches_output_dir=args.patches_output_dir,
+                              extract_patches_only=args.extract_patches_only,
                               no_write=False)
-    else:
-        analyse_regions_file(args)
