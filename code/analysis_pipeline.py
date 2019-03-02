@@ -48,10 +48,10 @@ import models
 
 from collections import defaultdict
 from keras.models import load_model
-from scipy.ndimage.morphology import binary_fill_holes
+# from scipy.ndimage.morphology import binary_fill_holes
 from skimage import io
 from skimage import measure
-from skimage.morphology import opening, closing, erosion, dilation
+from skimage.morphology import dilation
 from skimage.morphology import disk
 
 import argparse
@@ -111,15 +111,15 @@ def get_args():
                         help="The path to the directory containing the input data frames organized by scene_tags."
                              "If '--regions-file' is provided, this directory would be created and frames from the"
                              "regions files from static regions will be extracted into this directory.")
-    parser.add_argument('--mask-dir',
-                        help="The path to the directory where the patch-level masks of the detected objects"
-                             "need to be saved. If not provided, the patch-level masks will not be saved.")
     parser.add_argument('--outfile',
                         required=True,
                         help="The path at which the analysis report needs to be saved.")
     parser.add_argument('--patches-output-dir',
                         help="The path at which the patches sent for classifier need to be saved."
                              "if not provided, the patches sent for classifier will not be saved.")
+    parser.add_argument('--masks-output-dir',
+                        help="The path to the directory where the patch-level masks of the detected objects"
+                             "need to be saved. If not provided, the patch-level masks will not be saved.")
     parser.add_argument('--extract-patches-only',
                         action="store_true",
                         help="Only extracts the patches sent for classifier in the provided patches-output-dir.")
@@ -160,7 +160,7 @@ def get_json_serializable(o):
     raise TypeError
 
 
-class RegionSize(object):
+class RegionInfo(object):
     def __init__(self, area, bb_length, bb_width):
         self.area = area
         self.bb_length = bb_length
@@ -309,8 +309,8 @@ def _get_raw_mask(frame, segmentation_model_config):
     return raw_mask
 
 
-def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
-    patch_coord_to_label_size_dict = {}
+def _get_patch_coord_to_label_region_info_dict(label_to_postprocessed_mask_dict):
+    patch_coord_to_label_region_info_dict = {}
     for label, mask in label_to_postprocessed_mask_dict.items():
         mask = mask >= 255
         label_image = measure.label(mask)
@@ -318,11 +318,11 @@ def _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict):
             minr, minc, maxr, maxc = region.bbox
             bb_length = maxc - minc
             bb_width = maxr - minr
-            region_size = RegionSize(region.area, bb_length, bb_width)
+            region_info = RegionInfo(region.area, bb_length, bb_width)
             patch_coord = tuple([int(x) for x in region.centroid])
-            patch_coord_to_label_size_dict[patch_coord] = (label, region_size)
+            patch_coord_to_label_region_info_dict[patch_coord] = (label, region_info)
 
-    return patch_coord_to_label_size_dict
+    return patch_coord_to_label_region_info_dict
 
 
 # Utility functions of analyse_frame function: Postprocess functions:
@@ -366,21 +366,34 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
 
 
 def _extract_labeled_patches(frame,
-                             patch_coord_to_label_size_dict,
+                             label_to_postprocessed_mask_dict,
                              patch_size=256,
                              adjust_patch_size=False,
                              label_to_model_config_dict=None):
+    # This contains list of centroids mapped to (label, region_info) tuples.
+    patch_coord_to_label_region_info_dict = {}
+    for label, mask in label_to_postprocessed_mask_dict.items():
+        mask = mask >= 255
+        label_image = measure.label(mask)
+        for region in measure.regionprops(label_image):
+            minr, minc, maxr, maxc = region.bbox
+            bb_length = maxc - minc
+            bb_width = maxr - minr
+            region_info = RegionInfo(region.area, bb_length, bb_width)
+            patch_coord = tuple([int(x) for x in region.centroid])
+            patch_coord_to_label_region_info_dict[patch_coord] = (label, region_info)
+
     # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
-    label_to_coord_patches_dict = defaultdict(list)
-    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
-        label, region_size = label_size
+    label_to_coord_patch_masks_dict = defaultdict(list)
+    for patch_coord, label_region_info in patch_coord_to_label_region_info_dict.items():
+        label, region_info = label_region_info
         if label_to_model_config_dict:
             patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
             adjust_patch_size = label_to_model_config_dict[label]["adjust_patch_size"]
 
         if (adjust_patch_size and
-            region_size.bb_length < patch_size // 2 and
-            region_size.bb_width < patch_size // 2):
+            region_info.bb_length < patch_size // 2 and
+            region_info.bb_width < patch_size // 2):
             unpadded_patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size // 2, padding_check=True)
             pad_size = (patch_size // 2) // 2
             patch = cv2.copyMakeBorder(unpadded_patch,
@@ -393,27 +406,35 @@ def _extract_labeled_patches(frame,
         else:
             patch = get_patch(frame, (patch_coord[1], patch_coord[0]), patch_size, padding_check=True)
 
-        label_to_coord_patches_dict[label].append((patch_coord, patch))
+        mask = get_patch(label_to_postprocessed_mask_dict[label],
+                         (patch_coord[1], patch_coord[0]),
+                         patch_size,
+                         padding_check=True)
 
-    return label_to_coord_patches_dict
+        label_to_coord_patch_masks_dict[label].append((patch_coord, patch, mask))
+
+    return label_to_coord_patch_masks_dict, patch_coord_to_label_region_info_dict
 
 
 def _validate_by_classification(frame,
-                                patch_coord_to_label_size_dict,
+                                label_to_postprocessed_mask_dict,
                                 label_to_model_config_dict,
                                 frame_base_name,
                                 patches_output_dir=None,
+                                masks_output_dir=None,
                                 img_ext="png"):
-    validated_patch_coord_to_label_size_dict = {}
-    label_to_coord_patches_dict = _extract_labeled_patches(frame,
-                                                           patch_coord_to_label_size_dict,
-                                                           label_to_model_config_dict=label_to_model_config_dict)
-    for label, coord_patches in label_to_coord_patches_dict.items():
+    validated_patch_coord_to_label_region_info_dict = {}
+    label_to_coord_patch_masks_dict, patch_coord_to_label_region_info_dict = \
+        _extract_labeled_patches(frame,
+                                 label_to_postprocessed_mask_dict,
+                                 label_to_model_config_dict=label_to_model_config_dict)
+
+    for label, coord_patch_masks in label_to_coord_patch_masks_dict.items():
         cur_model_config = label_to_model_config_dict[label]
         cur_model = _get_tf_model(cur_model_config)
         cur_class_labels = cur_model_config["classes"]
-        for coord_patch in coord_patches:
-            coord, patch = coord_patch
+        for coord_patch_mask in coord_patch_masks:
+            coord, patch, mask = coord_patch_mask
             if cur_model_config.get("rescale", True):
                 patch = patch * (1.0 / 255)
 
@@ -430,10 +451,19 @@ def _validate_by_classification(frame,
             logging.info("Classification for %s: %s (%.2f)" % (patch_name, pred_label, pred_proba))
             valid_label = cur_model_config["valid_class"]
             if pred_label == valid_label and pred_proba >= cur_model_config["prob_thresholds"][valid_label]:
-                validated_patch_coord_to_label_size_dict[coord] = patch_coord_to_label_size_dict[coord]
+                validated_patch_coord_to_label_region_info_dict[coord] = patch_coord_to_label_region_info_dict[coord]
+
+                mask_name = "%s_mask.%s" % os.path.splitext(patch_name)
+                if masks_output_dir:
+                    mask_path = os.path.join(masks_output_dir, mask_name)
+                    try:
+                        io.imsave(mask_path, mask)
+                    except:
+                        # TODO: Try to find the reason and avoid this case.
+                        logging.exception("Couldn't save: %s" % mask_path)
 
     logging.info("The patches have been validated using the provided classification models.")
-    return validated_patch_coord_to_label_size_dict
+    return validated_patch_coord_to_label_region_info_dict
 
 
 def _get_marked_image(frame,
@@ -462,6 +492,7 @@ def analyse_frame(scene_tag,
                   frame_path,
                   label_to_segmentation_model_config_dict,
                   label_to_classification_model_config_dict,
+                  masks_output_dir=None,
                   img_ext="png",
                   patches_output_dir=None,
                   extract_patches_only=False,
@@ -487,9 +518,6 @@ def analyse_frame(scene_tag,
             io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
                                    % (frame_base_name, label, img_ext)), postprocessed_mask)
 
-    # This contains list of centroids mapped to labels
-    patch_coord_to_label_size_dict = _get_patch_coord_to_label_size_dict(label_to_postprocessed_mask_dict)
-
     # If 'patches_output_dir' has been provided, then just return as only the patches were required.
     if extract_patches_only:
         if not os.path.exists(patches_output_dir):
@@ -497,10 +525,10 @@ def analyse_frame(scene_tag,
 
         logging.info("Extracting the patches only as the 'extract-patches-only' argument has been provided. "
                      "The extracted patches will not have patch_size = 256, and adjust_patch_size = False.")
-        label_to_coord_patches_dict = _extract_labeled_patches(frame,
-                                                               patch_coord_to_label_size_dict,
-                                                               patch_size=256,
-                                                               adjust_patch_size=False)
+        label_to_coord_patches_dict, _ = _extract_labeled_patches(frame,
+                                                                  label_to_postprocessed_mask_dict,
+                                                                  patch_size=256,
+                                                                  adjust_patch_size=False)
         for label, coord_patches in label_to_coord_patches_dict.items():
             for coord_patch in coord_patches:
                 coord, patch = coord_patch
@@ -515,39 +543,43 @@ def analyse_frame(scene_tag,
         logging.info("The patches have been extracted from: %s" % frame_path)
         return
 
-    # Extract Patches and Classify the patches to get validated_patch_coord_to_label_size_dict.
-    validated_patch_coord_to_label_size_dict = _validate_by_classification(frame,
-                                                                           patch_coord_to_label_size_dict,
-                                                                           label_to_classification_model_config_dict,
-                                                                           frame_base_name,
-                                                                           patches_output_dir=patches_output_dir,
-                                                                           img_ext=img_ext)
+    # Extract Patches and Classify the patches to get validated_patch_coord_to_label_region_info_dict.
+    validated_patch_coord_to_label_region_info_dict = \
+        _validate_by_classification(frame,
+                                    label_to_postprocessed_mask_dict,
+                                    label_to_classification_model_config_dict,
+                                    frame_base_name,
+                                    patches_output_dir=patches_output_dir,
+                                    masks_output_dir=masks_output_dir,
+                                    img_ext=img_ext)
 
     marked_image = _get_marked_image(frame,
-                                     validated_patch_coord_to_label_size_dict,
+                                     validated_patch_coord_to_label_region_info_dict,
                                      LABEL_TO_COLOR_DICT,
                                      label_to_classification_model_config_dict)
     if not no_write:
         io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
     # Format the result.
-    label_to_location_sizes_dict = defaultdict(dict)
-    for patch_coord, label_size in validated_patch_coord_to_label_size_dict.items():
-        label, size = label_size
+    # Create the detected_object_info dict.
+    label_to_detected_object_info_dict = defaultdict(dict)
+    for patch_coord, label_region_info in validated_patch_coord_to_label_region_info_dict.items():
+        label, region_info = label_region_info
         # XXX: Converting patch coord to string as JSON cannot handle tuple in dictionary keys.
         # XXX: To convert back to tuple, use: `t = tuple([int(x) for x in t_s.lstrip("(").rstrip(")").split(",")])`
-        label_to_location_sizes_dict[label][str(patch_coord)] = size.area
+        label_to_detected_object_info_dict[label][str(patch_coord)] = {"area": region_info.area}
+        # TODO: Add more region info to the report if needed.
 
     label_to_counts_dict = {}
-    for label, location_sizes in label_to_location_sizes_dict.items():
-        label_to_counts_dict[label] = len(location_sizes)
+    for label, detected_object_info_dict in label_to_detected_object_info_dict.items():
+        label_to_counts_dict[label] = len(detected_object_info_dict)
 
     result_dict = {
         "frame": frame_base_name,
         "scene_tag": scene_tag,
         "frame_res": json.dumps(FRAME_RESOLUTION),
         "counts": label_to_counts_dict,
-        "location_sizes": label_to_location_sizes_dict
+        "detected_object_info": label_to_detected_object_info_dict
     }
 
     if not no_write:
@@ -639,7 +671,8 @@ if __name__ == "__main__":
             frame_report = analyse_frame(scene_tag,
                                          frame_path,
                                          label_to_segmentation_model_config_dict,
-                                         label_to_classification_model_config_dict=label_to_classification_model_config_dict,
+                                         label_to_classification_model_config_dict,
+                                         masks_output_dir=args.masks_output_dir,
                                          img_ext="png",
                                          patches_output_dir=args.patches_output_dir,
                                          extract_patches_only=args.extract_patches_only,
