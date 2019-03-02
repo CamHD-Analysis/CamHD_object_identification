@@ -2,10 +2,13 @@
 
 Identify objects of interest near and on the hydrothermal vent - Mushroom in the Axial Seamount volcano.
 
+*TODO: This documentation needs to be updated.*
+
 ### Objects of interest:
 ##### Animals on Hydrothermal vent. (Segmentation and Classification)
-- Amphipods
-- Crabs
+- Amphipod - Scaleworm (Currently, only this has been implemented)
+- Starfish
+- Crab
 
 ##### Fishes near the hydrothermal vent. (Anomaly detection.)
 - Big fish similar to Shark
@@ -75,34 +78,34 @@ _file extension_:* "png" <br/><br/>
             - annotation_file ("patch_name,class_label")
 
     - testbed (randomly sampled frames from several videos across days)
-        - testbed_src_frame_names
-        - analysis_output _(debug_mode)_
+        - testbed_src_frame_names (each frame inside a directory corresponding to its scene_tag)
+        - analysis_output (in the same directory as the frame)
             - raw_stitched_mask
             - postprocessed_mask
             - marked_frame (src frame on which the predicted bounding boxes are drawn)
-            - classification_output ("patch_name,class_label")
             - report.json
         - analysis_report (consolidation of report.json files from each of the test frame images.)
+        - mask_dir: a directory containing the patch-level masks for each of the detected objects.
 
 ##### Report format (report.json):
 ###### Frame level report format (frame_report):
 ```json
 {
     "frame": "CAMHDA301-20180711T001500_1274.png",
-    "scene_tag": "p1_z1",
+    "scene_tag": "d5A_p1_z1",
     "frame_resolution": "[1920, 1080]",
     "counts": {
         "amphipod": 4,
         "star": 2
     },
-    "location_sizes": {
+    "detected_object_info": {
         "amphipod": {
-            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
-            "[324, 1452]": 65,
+            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": <num_pixels>, ...},
+            "(324, 1452)": {"size": 65},
             "<...>": "<>"
         },
         "star": {
-            "[<X_wrt_frame>, <Y_wrt_frame>]": "<num_pixels>",
+            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": <num_pixels>, ...},
             "<...>": "<>"
         }
     }
@@ -114,11 +117,11 @@ _file extension_:* "png" <br/><br/>
     "video": "CAMHDA301-20180711T001500",
     "deployment": "d5A",
     "date": "20180711",
-    "time": "00:15",
-    "frames": {
-        "<scene_tag>": "<frame_report_1>",
-        "p1_z1": "<frame_report_2>",
-        "<...>": "<>"
-    }
+    "time": "001500",
+    "frame_reports": [
+        "<frame_report_1>",
+        "<frame_report_2>",
+        "<...>"
+    ]
 }
 ```
