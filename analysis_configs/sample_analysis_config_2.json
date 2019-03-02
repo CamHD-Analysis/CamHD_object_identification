@@ -1,0 +1,16 @@
+{
+    "analysis_version": "prototype-2",
+    "labels": ["amphipod", "star"],
+    "scene_tags": {
+        "amphipod": ["d5A_p1_z1", "d5A_p5_z1", "d5A_p6_z1", "d5A_p0_z1", "d5A_p7_z1", "d5A_p8_z1"],
+        "star": ["d5A_p7_z1"]
+    },
+    "label_to_segmentation_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet_1.json",
+        "star": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/star_unet_1.json"
+    },
+    "label_to_classification_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_cnn-v0.1.json",
+        "star": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/star_cnn-v0.1.json"
+    }
+}
