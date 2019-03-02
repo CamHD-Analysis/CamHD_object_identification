@@ -100,12 +100,12 @@ _file extension_:* "png" <br/><br/>
     },
     "detected_object_info": {
         "amphipod": {
-            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": <num_pixels>, ...},
+            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": "<num_pixels>", ...},
             "(324, 1452)": {"size": 65},
             "<...>": "<>"
         },
         "star": {
-            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": <num_pixels>, ...},
+            "(<X_wrt_frame>, <Y_wrt_frame>)": {"area": "<num_pixels>", ...},
             "<...>": "<>"
         }
     }
