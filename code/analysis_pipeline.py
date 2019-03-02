@@ -1,5 +1,46 @@
 #!/usr/bin/env python3
 
+"""
+Run Analysis on a given video regions_file and output the analysis report.
+
+sample_analysis_config_1:
+{
+    "analysis_version": "prototype-1",
+    "labels": ["amphipod"],
+    "scene_tags": {
+        "amphipod": ["d5A_p1_z1", "d5A_p5_z1", "d5A_p6_z1", "d5A_p0_z1", "d5A_p7_z1", "d5A_p8_z1"]
+    },
+    "label_to_segmentation_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet_1.json"
+    },
+    "label_to_classification_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_cnn-v0.1.json"
+    }
+}
+
+sample_analysis_config_2:
+{
+    "analysis_version": "prototype-2",
+    "labels": ["amphipod", "star"],
+    "scene_tags": {
+        "amphipod": ["d5A_p1_z1", "d5A_p5_z1", "d5A_p6_z1", "d5A_p0_z1", "d5A_p7_z1", "d5A_p8_z1"],
+        "star": ["d5A_p7_z1"]
+    },
+    "label_to_segmentation_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet_1.json",
+        "star": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/star_unet_1.json"
+    },
+    "label_to_classification_model_config": {
+        "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_cnn-v0.1.json",
+        "star": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/star_cnn-v0.1.json"
+    }
+}
+
+Note: All the trained models must be present in the 'trained_models' directory.
+Also, the model_configs must have the model_path relative to the 'trained_models' directory.
+
+"""
+
 import pycamhd.lazycache as camhd
 import pycamhd.motionmetadata as mmd
 
@@ -26,9 +67,17 @@ import os
 
 FRAME_RESOLUTION = (1080, 1920)
 
-# TODO: Try the thresholds for each scene and enter the thresholds here.
-SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT = {
+# TODO: Avoid defaulting deployment once this information is available from the regions files.
+DEFAULT_DEPLOYMENT = "d5A"
 
+# TODO: Try the thresholds for each scene and enter the thresholds here. Currently, set to an arbitrary value.
+SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT = {
+    "d5A_p1_z1": 0.5,
+    "d5A_p5_z1": 0.5,
+    "d5A_p6_z1": 0.5,
+    "d5A_p0_z1": 0.5,
+    "d5A_p7_z1": 0.5,
+    "d5A_p8_z1": 0.5
 }
 
 LABEL_TO_COLOR_DICT = {
@@ -49,41 +98,35 @@ def get_args():
     parser = argparse.ArgumentParser(description=
     """
     Run Analysis on a given video regions_file and output the analysis report.
-    Intermediate analysis files will be written to provided analysis-work-dir in
-    debug mode (currently set to default).
 
-    Sample analysis config:
-    {
-        "analysis_version": "prototype-1",
-        "labels": ["amphipod", "star"],
-        "scene_tags": {
-            "amphipod": ["d5A_p1_z1", "d5A_p5_z1", "d5A_p6_z1", "d5A_p0_z1", "d5A_p7_z1", "d5A_p8_z1"],
-            "star": ["d5A_p7_z1"]
-        },
-        "segmentation_trained_models": {
-            "amphipod": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet_1.hdf5",
-            "star": "/home/bhuvan/Projects/CamHD_object_identification/trained_models/star_unet_1.hdf5"
-        }
-    }
     """)
     parser.add_argument('--config',
+                        required=True,
                         help="The analysis config (JSON). Please refer to the sample analyser config.")
     parser.add_argument('--regions-file',
-                        help="The path to the video regions_file on which the analysis needs to be run.")
-    parser.add_argument('--analysis-work-dir',
-                        help="The path to the directory where intermediate analysis files can be written.")
+                        help="The path to the video regions_file on which the analysis needs to be run."
+                             "If it is not provided, a set of test frames can be provided using '--input-data-dir'.")
+    parser.add_argument('--input-data-dir',
+                        required=True,
+                        help="The path to the directory containing the input data frames organized by scene_tags."
+                             "If '--regions-file' is provided, this directory would be created and frames from the"
+                             "regions files from static regions will be extracted into this directory.")
+    parser.add_argument('--mask-dir',
+                        help="The path to the directory where the patch-level masks of the detected objects"
+                             "need to be saved. If not provided, the patch-level masks will not be saved.")
     parser.add_argument('--outfile',
+                        required=True,
                         help="The path at which the analysis report needs to be saved.")
-
+    parser.add_argument('--patches-output-dir',
+                        help="The path at which the patches sent for classifier need to be saved."
+                             "if not provided, the patches sent for classifier will not be saved.")
     parser.add_argument('--extract-patches-only',
                         action="store_true",
                         help="Only extracts the patches sent for classifier in the provided patches-output-dir.")
-    parser.add_argument('--input-data-dir',
-                        help="The path to the directory containing the input data frames organized by scene_tags.")
-    parser.add_argument('--patches-output-dir',
-                        help="The path at which the patches sent for classifier need to be saved."
-                             "It is required if 'extract-patches-only' flag is set.")
-
+    parser.add_argument('--no-write',
+                        action="store_true",
+                        help="If this flag is set, the intermediate frame-level mask, marked image and report"
+                             "will not be written.")
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -101,10 +144,11 @@ def get_args():
 
 def _is_sharp(img, scene_tag):
     def _get_sharpness_score(img):
-        pass
+        # TODO: This needs to be implemented when sharpness based to frame selection is incorporated.
+        return 1
 
-
-    if _get_sharpness_score(img) >= SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT[scene_tag]:
+    # TODO: Chose the appropriate default sharpness value after analysis.
+    if _get_sharpness_score(img) >= SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT.get(scene_tag, 0.5):
         return True
 
     return False
@@ -506,59 +550,106 @@ def analyse_frame(scene_tag,
         "location_sizes": label_to_location_sizes_dict
     }
 
-    with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
-        json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
+    if not no_write:
+        with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
+            json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
 
     logging.info("The frame has been analysed: %s" % frame_path)
     return result_dict
 
 
-def analyse_regions_file(args):
-    if not args.lazycache:
+def prepare_input_data_dir(regions_file, input_data_dir_path, required_scene_tags, lazycache, img_ext="png"):
+    if not lazycache:
         raise ValueError("The lazycache-url could not be found.")
 
-    pass
+    qt = camhd.lazycache(args.lazycache)
+
+    os.makedirs(input_data_dir_path)
+    for scene_tag in required_scene_tags:
+        os.makedirs(os.path.join(input_data_dir_path, scene_tag))
+
+    for region in regions_file.static_regions():
+        if region.scene_tag not in required_scene_tags:
+            continue
+
+        url = regions_file.mov
+        # TODO: Check for sharpness and select the frame.
+        sample_frame = region.start_frame + 0.5 * (region.end_frame - region.start_frame)
+
+        img_path = os.path.join(input_data_dir_path, region.scene_tag)
+        sample_frame_path = os.path.join(img_path, "%s_%d.%s"
+                                         % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
+        logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
+        img = qt.get_frame(url, sample_frame, format=img_ext)
+        img.save(sample_frame_path)
+
+    logging.info("The input-data-dir has been created at '%s' by extracting frames from static regions"
+                 "of the regions file: %s" % (input_data_dir_path, regions_file.mov))
 
 
 if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.log.upper())
 
-    # TODO: This assumes that the script is being run from the repository root directory.
-    with open("./trained_models/amphipod_unet_1.json") as fp:
-        amphipod_segmentation_model_config_dict = json.load(fp)
+    with open(args.config) as fp:
+        analysis_config = json.load(fp)
 
-    label_to_segmentation_model_config_dict = {
-        "amphipod": amphipod_segmentation_model_config_dict
-    }
+    required_scene_tags = []
+    for label, cur_scene_tags in analysis_config["scene_tags"].items():
+        required_scene_tags.extend(cur_scene_tags)
 
-    # TODO: This assumes that the script is being run from the repository root directory.
-    with open("./trained_models/amphipod_cnn-v0.1.json") as fp:
-        amphipod_classification_model_config_dict = json.load(fp)
+    label_to_segmentation_model_config_dict = {}
+    label_to_classification_model_config_dict = {}
+    for label, model_config_path in analysis_config["label_to_segmentation_model_config"].items():
+        with open(model_config_path) as fp:
+            label_to_segmentation_model_config_dict[label] = json.load(model_config_path)
 
-    label_to_classification_model_config_dict = {
-        "amphipod": amphipod_classification_model_config_dict
-    }
+    for label, model_config_path in analysis_config["label_to_classification_model_config"].items():
+        with open(model_config_path) as fp:
+            label_to_classification_model_config_dict[label] = json.load(model_config_path)
 
+    regions_file_report = None
     if args.regions_file:
         if not os.path.exists(args.regions_file):
             raise ValueError("The regions-file does not exist: %s" % args.regions_file)
 
         logging.info("Analysing the regions file: %s" % args.regions_file)
-        analyse_regions_file(args)
-    else:
-        if args.extract_patches_only:
-            if not args.patches_output_dir:
-                raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
+        regions_file = mmd.RegionFile.load(args.regions_file)
+        date_time = regions_file.basename.split("-")[1].split("T")
+        regions_file_report = {
+            "video": regions_file.basename,
+            "deployment": DEFAULT_DEPLOYMENT, # TODO: Need to be updated once regions files include deployment info.
+            "date": date_time[0],
+            "time": date_time[1]
+        }
+        prepare_input_data_dir(regions_file,
+                               args.input_data_dir,
+                               required_scene_tags,
+                               args.lazycache,
+                               img_ext=args.img_ext)
 
-        for scene_tag in os.listdir(args.input_data_dir):
-            for frame_file in os.listdir(os.path.join(args.input_data_dir, scene_tag)):
-                frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
-                analyse_frame(scene_tag,
-                              frame_path,
-                              label_to_segmentation_model_config_dict,
-                              label_to_classification_model_config_dict=label_to_classification_model_config_dict,
-                              img_ext="png",
-                              patches_output_dir=args.patches_output_dir,
-                              extract_patches_only=args.extract_patches_only,
-                              no_write=False)
+    if args.extract_patches_only:
+        if not args.patches_output_dir:
+            raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
+
+    all_frame_reports = []
+    for scene_tag in os.listdir(args.input_data_dir):
+        for frame_file in os.listdir(os.path.join(args.input_data_dir, scene_tag)):
+            frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
+            frame_report = analyse_frame(scene_tag,
+                                         frame_path,
+                                         label_to_segmentation_model_config_dict,
+                                         label_to_classification_model_config_dict=label_to_classification_model_config_dict,
+                                         img_ext="png",
+                                         patches_output_dir=args.patches_output_dir,
+                                         extract_patches_only=args.extract_patches_only,
+                                         no_write=args.no_write)
+            all_frame_reports.append(frame_report)
+
+    if regions_file_report:
+        regions_file_report["frame_reports"] = all_frame_reports
+        with open(args.outfile, "w") as fp:
+            json.dump(regions_file_report, fp, indent=4, sort_keys=True, default=get_json_serializable)
+    else:
+        with open(args.outfile, "w") as fp:
+            json.dump(all_frame_reports, fp, indent=4, sort_keys=True, default=get_json_serializable)
