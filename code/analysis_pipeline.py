@@ -104,21 +104,21 @@ def get_args():
                         required=True,
                         help="The analysis config (JSON). Please refer to the sample analyser config.")
     parser.add_argument('--regions-file',
-                        help="The path to the video regions_file on which the analysis needs to be run."
+                        help="The path to the video regions_file on which the analysis needs to be run. "
                              "If it is not provided, a set of test frames can be provided using '--input-data-dir'.")
     parser.add_argument('--input-data-dir',
                         required=True,
-                        help="The path to the directory containing the input data frames organized by scene_tags."
-                             "If '--regions-file' is provided, this directory would be created and frames from the"
+                        help="The path to the directory containing the input data frames organized by scene_tags. "
+                             "If '--regions-file' is provided, this directory would be created and frames from the "
                              "regions files from static regions will be extracted into this directory.")
     parser.add_argument('--outfile',
                         required=True,
                         help="The path at which the analysis report needs to be saved.")
     parser.add_argument('--patches-output-dir',
-                        help="The path at which the patches sent for classifier need to be saved."
-                             "if not provided, the patches sent for classifier will not be saved.")
+                        help="The path at which the patches sent for classifier need to be saved. "
+                             "If not provided, the patches sent for classifier will not be saved.")
     parser.add_argument('--masks-output-dir',
-                        help="The path to the directory where the patch-level masks of the detected objects"
+                        help="The path to the directory where the patch-level masks of the detected objects "
                              "need to be saved. If not provided, the patch-level masks will not be saved.")
     parser.add_argument('--extract-patches-only',
                         action="store_true",
@@ -127,6 +127,9 @@ def get_args():
                         action="store_true",
                         help="If this flag is set, the intermediate frame-level mask, marked image and report"
                              "will not be written.")
+    parser.add_argument('--restrict-gpu',
+                        help="The value to be set for 'CUDA_VISIBLE_DEVICES' if GPU cores need to be restricted. "
+                             "If not provided, the 'CUDA_VISIBLE_DEVICES' will not be set by this script.")
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -139,7 +142,15 @@ def get_args():
                         default="DEBUG",
                         help="Specify the log level. Default: DEBUG.")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.patches_output_dir and not os.path.exists(args.patches_output_dir):
+        os.makedirs(args.patches_output_dir)
+
+    if args.masks_output_dir and not os.path.exists(args.masks_output_dir):
+        os.makedirs(args.masks_output_dir)
+
+    return args
 
 
 def _is_sharp(img, scene_tag):
@@ -492,9 +503,9 @@ def analyse_frame(scene_tag,
                   frame_path,
                   label_to_segmentation_model_config_dict,
                   label_to_classification_model_config_dict,
-                  masks_output_dir=None,
                   img_ext="png",
                   patches_output_dir=None,
+                  masks_output_dir=None,
                   extract_patches_only=False,
                   no_write=False):
     work_dir, frame_name = os.path.split(frame_path)
@@ -583,22 +594,21 @@ def analyse_frame(scene_tag,
     }
 
     if not no_write:
-        with open(os.path.join(work_dir, "%s_report.json" % scene_tag), "w") as fp:
+        with open(os.path.join(work_dir, "%s_report.json" % frame_base_name), "w") as fp:
             json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
 
     logging.info("The frame has been analysed: %s" % frame_path)
     return result_dict
 
 
-def prepare_input_data_dir(regions_file, input_data_dir_path, required_scene_tags, lazycache, img_ext="png"):
+def prepare_input_data_dir(regions_file, input_data_dir, required_scene_tags, lazycache, img_ext="png"):
     if not lazycache:
         raise ValueError("The lazycache-url could not be found.")
 
     qt = camhd.lazycache(args.lazycache)
 
-    os.makedirs(input_data_dir_path)
     for scene_tag in required_scene_tags:
-        os.makedirs(os.path.join(input_data_dir_path, scene_tag))
+        os.makedirs(os.path.join(input_data_dir, scene_tag))
 
     for region in regions_file.static_regions():
         if region.scene_tag not in required_scene_tags:
@@ -608,7 +618,7 @@ def prepare_input_data_dir(regions_file, input_data_dir_path, required_scene_tag
         # TODO: Check for sharpness and select the frame.
         sample_frame = region.start_frame + 0.5 * (region.end_frame - region.start_frame)
 
-        img_path = os.path.join(input_data_dir_path, region.scene_tag)
+        img_path = os.path.join(input_data_dir, region.scene_tag)
         sample_frame_path = os.path.join(img_path, "%s_%d.%s"
                                          % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
         logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
@@ -616,12 +626,16 @@ def prepare_input_data_dir(regions_file, input_data_dir_path, required_scene_tag
         img.save(sample_frame_path)
 
     logging.info("The input-data-dir has been created at '%s' by extracting frames from static regions"
-                 "of the regions file: %s" % (input_data_dir_path, regions_file.mov))
+                 "of the regions file: %s" % (input_data_dir, regions_file.mov))
 
 
 if __name__ == "__main__":
     args = get_args()
     logging.basicConfig(level=args.log.upper())
+
+    if args.restrict_gpu:
+        logging.info("Setting CUDA_VISIBLE_DEVICES=%s" % str(args.restrict_gpu))
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.restrict_gpu
 
     with open(args.config) as fp:
         analysis_config = json.load(fp)
@@ -634,16 +648,22 @@ if __name__ == "__main__":
     label_to_classification_model_config_dict = {}
     for label, model_config_path in analysis_config["label_to_segmentation_model_config"].items():
         with open(model_config_path) as fp:
-            label_to_segmentation_model_config_dict[label] = json.load(model_config_path)
+            label_to_segmentation_model_config_dict[label] = json.load(fp)
 
     for label, model_config_path in analysis_config["label_to_classification_model_config"].items():
         with open(model_config_path) as fp:
-            label_to_classification_model_config_dict[label] = json.load(model_config_path)
+            label_to_classification_model_config_dict[label] = json.load(fp)
 
     regions_file_report = None
     if args.regions_file:
         if not os.path.exists(args.regions_file):
             raise ValueError("The regions-file does not exist: %s" % args.regions_file)
+
+        if os.path.exists(args.input_data_dir):
+            raise ValueError("The provided input-data-dir already exists: %s. While processing the regions-file, "
+                             "the input-data-dir will be created by the script." % args.input_data_dir)
+
+        os.makedirs(args.input_data_dir)
 
         logging.info("Analysing the regions file: %s" % args.regions_file)
         regions_file = mmd.RegionFile.load(args.regions_file)
@@ -672,9 +692,9 @@ if __name__ == "__main__":
                                          frame_path,
                                          label_to_segmentation_model_config_dict,
                                          label_to_classification_model_config_dict,
-                                         masks_output_dir=args.masks_output_dir,
                                          img_ext="png",
                                          patches_output_dir=args.patches_output_dir,
+                                         masks_output_dir=args.masks_output_dir,
                                          extract_patches_only=args.extract_patches_only,
                                          no_write=args.no_write)
             all_frame_reports.append(frame_report)
