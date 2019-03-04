@@ -172,10 +172,17 @@ def get_json_serializable(o):
 
 
 class RegionInfo(object):
-    def __init__(self, area, bb_length, bb_width):
-        self.area = area
-        self.bb_length = bb_length
-        self.bb_width = bb_width
+    def __init__(self, region, pred_score=None):
+        self.region = region
+        self._extract_region_info()
+        self.pred_score = pred_score
+
+    def _extract_region_info(self):
+        self.area = self.region.area
+
+        minr, minc, maxr, maxc = self.region.bbox
+        self.bb_length = maxc - minc
+        self.bb_width = maxr - minr
 
 
 # TODO: Keep this logic at one place.
@@ -320,22 +327,6 @@ def _get_raw_mask(frame, segmentation_model_config):
     return raw_mask
 
 
-def _get_patch_coord_to_label_region_info_dict(label_to_postprocessed_mask_dict):
-    patch_coord_to_label_region_info_dict = {}
-    for label, mask in label_to_postprocessed_mask_dict.items():
-        mask = mask >= 255
-        label_image = measure.label(mask)
-        for region in measure.regionprops(label_image):
-            minr, minc, maxr, maxc = region.bbox
-            bb_length = maxc - minc
-            bb_width = maxr - minr
-            region_info = RegionInfo(region.area, bb_length, bb_width)
-            patch_coord = tuple([int(x) for x in region.centroid])
-            patch_coord_to_label_region_info_dict[patch_coord] = (label, region_info)
-
-    return patch_coord_to_label_region_info_dict
-
-
 # Utility functions of analyse_frame function: Postprocess functions:
 def _postprocess_mask_1(raw_mask):
     raw_mask = raw_mask / 255
@@ -376,23 +367,26 @@ LABEL_TO_POSTPROCESS_FUNC_DICT = {
 }
 
 
-def _extract_labeled_patches(frame,
-                             label_to_postprocessed_mask_dict,
-                             patch_size=256,
-                             adjust_patch_size=False,
-                             label_to_model_config_dict=None):
+def _get_patch_coord_to_label_region_info_dict(label_to_postprocessed_mask_dict):
     # This contains list of centroids mapped to (label, region_info) tuples.
     patch_coord_to_label_region_info_dict = {}
     for label, mask in label_to_postprocessed_mask_dict.items():
         mask = mask >= 255
         label_image = measure.label(mask)
         for region in measure.regionprops(label_image):
-            minr, minc, maxr, maxc = region.bbox
-            bb_length = maxc - minc
-            bb_width = maxr - minr
-            region_info = RegionInfo(region.area, bb_length, bb_width)
+            region_info = RegionInfo(region)
             patch_coord = tuple([int(x) for x in region.centroid])
             patch_coord_to_label_region_info_dict[patch_coord] = (label, region_info)
+
+    return patch_coord_to_label_region_info_dict
+
+
+def _extract_labeled_patches(frame,
+                             label_to_postprocessed_mask_dict,
+                             patch_size=256,
+                             adjust_patch_size=False,
+                             label_to_model_config_dict=None):
+    patch_coord_to_label_region_info_dict = _get_patch_coord_to_label_region_info_dict(label_to_postprocessed_mask_dict)
 
     # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
     label_to_coord_patch_masks_dict = defaultdict(list)
@@ -460,9 +454,14 @@ def _validate_by_classification(frame,
 
             pred_label, pred_proba = _invoke_cnn(patch, cur_model, cur_class_labels)
             logging.info("Classification for %s: %s (%.2f)" % (patch_name, pred_label, pred_proba))
+
+            # Add the predicted probability to the region_info.
+            label, region_info = patch_coord_to_label_region_info_dict[coord]
+            region_info.pred_score = pred_proba
+
             valid_label = cur_model_config["valid_class"]
             if pred_label == valid_label and pred_proba >= cur_model_config["prob_thresholds"][valid_label]:
-                validated_patch_coord_to_label_region_info_dict[coord] = patch_coord_to_label_region_info_dict[coord]
+                validated_patch_coord_to_label_region_info_dict[coord] = (label, region_info)
 
                 mask_name = "%s_mask.%s" % os.path.splitext(patch_name)
                 if masks_output_dir:
@@ -478,23 +477,23 @@ def _validate_by_classification(frame,
 
 
 def _get_marked_image(frame,
-                      patch_coord_to_label_size_dict,
+                      patch_coord_to_label_region_info_dict,
                       label_to_color_dict,
-                      label_to_model_config_dict,
                       thickness=2):
     # The patch_size and adjust_patch_size provided will be overridden if label_to_model_config_dict is provided.
-    for patch_coord, label_size in patch_coord_to_label_size_dict.items():
-        label, region_size = label_size
+    for patch_coord, label_region_info in patch_coord_to_label_region_info_dict.items():
+        label, region_info = label_region_info
         color = label_to_color_dict[label]
-        patch_size = label_to_model_config_dict[label]["input_shape"][:-1][0]
-
-        # Adjust the bounding box size according the region_size.
-        if region_size.bb_length < patch_size // 2 and region_size.bb_width < patch_size // 2:
-            patch_size = patch_size // 2
-
-        top_left_coord = (patch_coord[1] - (patch_size // 2), patch_coord[0] - (patch_size // 2))
-        bottom_right_coord = (patch_coord[1] + (patch_size // 2), patch_coord[0] + (patch_size // 2))
+        minr, minc, maxr, maxc = region_info.region.bbox
+        top_left_coord = (minc, minr)
+        bottom_right_coord = (maxc, maxr)
         cv2.rectangle(frame, top_left_coord, bottom_right_coord, color, thickness)
+
+        # Add the predicted probability as a text near the bounding box.
+        if region_info.pred_score:
+            prob_text = "%.2f" % region_info.pred_score
+            # Adjust the text for bounding box thickness.
+            cv2.putText(frame, prob_text, (minc, minr - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, lineType=cv2.LINE_AA)
 
     return frame
 
@@ -566,8 +565,7 @@ def analyse_frame(scene_tag,
 
     marked_image = _get_marked_image(frame,
                                      validated_patch_coord_to_label_region_info_dict,
-                                     LABEL_TO_COLOR_DICT,
-                                     label_to_classification_model_config_dict)
+                                     LABEL_TO_COLOR_DICT)
     if not no_write:
         io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
@@ -578,7 +576,11 @@ def analyse_frame(scene_tag,
         label, region_info = label_region_info
         # XXX: Converting patch coord to string as JSON cannot handle tuple in dictionary keys.
         # XXX: To convert back to tuple, use: `t = tuple([int(x) for x in t_s.lstrip("(").rstrip(")").split(",")])`
-        label_to_detected_object_info_dict[label][str(patch_coord)] = {"area": region_info.area}
+        label_to_detected_object_info_dict[label][str(patch_coord)] = {
+            "area": region_info.area,
+            "bbox": json.dumps(region_info.region.bbox), # TODO: Check if the order is right?
+            "pred_score": float(region_info.pred_score)
+        }
         # TODO: Add more region info to the report if needed.
 
     label_to_counts_dict = {}
@@ -595,6 +597,7 @@ def analyse_frame(scene_tag,
 
     if not no_write:
         with open(os.path.join(work_dir, "%s_report.json" % frame_base_name), "w") as fp:
+            print(result_dict)
             json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
 
     logging.info("The frame has been analysed: %s" % frame_path)
@@ -621,6 +624,13 @@ def prepare_input_data_dir(regions_file, input_data_dir, required_scene_tags, la
         img_path = os.path.join(input_data_dir, region.scene_tag)
         sample_frame_path = os.path.join(img_path, "%s_%d.%s"
                                          % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
+
+        # The script doesn't allow for an already existing input_data_dir.
+        # This is added as an additional check to avoid retrieving the frame again.
+        if os.path.exists(sample_frame_path):
+            logging.info("Already exists: %s" % sample_frame_path)
+            continue
+
         logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
         img = qt.get_frame(url, sample_frame, format=img_ext)
         img.save(sample_frame_path)
@@ -685,8 +695,8 @@ if __name__ == "__main__":
             raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
 
     all_frame_reports = []
-    for scene_tag in os.listdir(args.input_data_dir):
-        for frame_file in os.listdir(os.path.join(args.input_data_dir, scene_tag)):
+    for scene_tag in sorted(os.listdir(args.input_data_dir)):
+        for frame_file in sorted(os.listdir(os.path.join(args.input_data_dir, scene_tag))):
             frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
             frame_report = analyse_frame(scene_tag,
                                          frame_path,
