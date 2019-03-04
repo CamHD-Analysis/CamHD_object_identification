@@ -32,6 +32,11 @@ def get_args():
                         type=float,
                         default=0.5,
                         help="The probability of a static region being selected. Default: 0.5.")
+    parser.add_argument('--random-seed',
+                        type=int,
+                        help="The seed to be set for random in python. "
+                             "This might help to rerun the function when it fails due to network problems. "
+                             "If not provided, seed will not be set.")
     parser.add_argument('--output',
                         required=True,
                         help="The path to the folder where the sampled frames need to be written.")
@@ -43,6 +48,8 @@ def get_args():
                         type=int,
                         default=1080,
                         help="The height of frames required. Default: 1080.")
+    parser.add_argument('--exclude-frames',
+                        help="The path to file containing list of frames which needs to be excluded from the sampling.")
     parser.add_argument('--unclassified-regions',
                         action='store_true',
                         help="Set this flag to sample all frames and thumbnail from unclassified region files. "
@@ -71,8 +78,7 @@ def get_args():
     if args.scenes:
         args.scenes = [x.strip() for x in args.scenes.split(",")]
 
-    if os.path.exists(args.output):
-        raise ValueError("The given output path already exists. Please provide a new output path: %s" % args.output)
+    os.makedirs(args.output, exist_ok=True)
 
     return args
 
@@ -94,7 +100,7 @@ def _get_all_frames(regions_file, img_path, qt, img_ext, width, height, include_
             img.save(thumb_file_path)
 
 
-def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, width, height):
+def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, width, height, exclude_frames=None):
     def _sample_prob(prob):
         """
         Returns True or False based on the given probability. Bernoille trial with given probability.
@@ -118,9 +124,17 @@ def _get_random_frames(regions_file, img_path, qt, img_ext, scene_tag, prob, wid
         url = regions_file.mov
 
         sample_frame = region.start_frame + 0.5 * (region.end_frame - region.start_frame)
+        sample_frame_name = "%s_%d" % (os.path.splitext(os.path.basename(url))[0], sample_frame)
 
-        sample_frame_path = os.path.join(img_path, "%s_%d.%s"
-                                         % (os.path.splitext(os.path.basename(url))[0], sample_frame, img_ext))
+        if exclude_frames and (sample_frame_name in exclude_frames):
+            logging.info("Excluding frame: %s" % sample_frame_name)
+            continue
+
+        sample_frame_path = os.path.join(img_path, "%s.%s" % (sample_frame_name, img_ext))
+        if os.path.exists(sample_frame_path):
+            logging.info("Already exists: frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
+            continue
+
         logging.info("Fetching frame %d from %s for contact sheet" % (sample_frame, os.path.basename(url)))
         img = qt.get_frame(url, sample_frame, format=img_ext, width=width, height=height)
         img.save(sample_frame_path)
@@ -130,7 +144,11 @@ def sample_random_frames(args):
     if not args.lazycache:
         raise ValueError("The lazycache-url could not be found.")
 
+    if args.random_seed:
+        random.seed(args.random_seed)
+
     blacklist_days = ["01", "02", "03", "10", "20"]
+
     def _process(infile):
         day = os.path.basename(infile).split("-")[1][6:8]
         if day in blacklist_days:
@@ -154,7 +172,8 @@ def sample_random_frames(args):
                                scene,
                                args.prob,
                                args.width,
-                               args.height)
+                               args.height,
+                               exclude_frames=args.exclude_frames)
 
 
     for pathin in args.input:
