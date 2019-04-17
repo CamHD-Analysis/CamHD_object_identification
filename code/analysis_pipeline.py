@@ -60,6 +60,7 @@ import json
 import logging
 import numpy as np
 import os
+import pickle
 
 # Use below code to force execute on CPU instead of GPU.
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -83,6 +84,10 @@ SCENE_TAG_TO_SHARPNESS_SCORE_THRESHOLD_DICT = {
 LABEL_TO_COLOR_DICT = {
     "amphipod": (255, 0, 0),    # RED
     "star": (255, 255, 0)       # Yellow
+}
+
+LABEL_TO_CLASS_ID_DICT = {
+    "amphipod": 1               # RED
 }
 
 # TODO: Generalize the patch_size.
@@ -111,9 +116,15 @@ def get_args():
                         help="The path to the directory containing the input data frames organized by scene_tags. "
                              "If '--regions-file' is provided, this directory would be created and frames from the "
                              "regions files from static regions will be extracted into this directory.")
+    parser.add_argument('--output-dir',
+                        help="The directory path to which the intermediate results for each frame need to be written. "
+                             "If not provided, the intermediate results for each frame will be written to the "
+                             "directory in which the respective frame is present in the input-data-dir.")
     parser.add_argument('--outfile',
                         required=True,
                         help="The path at which the analysis report needs to be saved.")
+    parser.add_argument('--coco-result-path',
+                        help="The path to which the results in the coco-format need to be output as a pickle file.")
     parser.add_argument('--patches-output-dir',
                         help="The path at which the patches sent for classifier need to be saved. "
                              "If not provided, the patches sent for classifier will not be saved.")
@@ -165,17 +176,17 @@ def _is_sharp(img, scene_tag):
     return False
 
 
-
 def get_json_serializable(o):
     if isinstance(o, np.int64): return int(o)
     raise TypeError
 
 
 class RegionInfo(object):
-    def __init__(self, region, pred_score=None):
+    def __init__(self, region, orig_img_shape, pred_score=None):
         self.region = region
         self._extract_region_info()
         self.pred_score = pred_score
+        self.orig_img_shape = orig_img_shape
 
     def _extract_region_info(self):
         self.area = self.region.area
@@ -183,6 +194,9 @@ class RegionInfo(object):
         minr, minc, maxr, maxc = self.region.bbox
         self.bb_length = maxc - minc
         self.bb_width = maxr - minr
+
+        region_mask = np.zeros(self.orig_img_shape)
+        self.mask = region_mask[tuple(self.region.coords.T)] = 1
 
 
 # TODO: Keep this logic at one place.
@@ -371,10 +385,11 @@ def _get_patch_coord_to_label_region_info_dict(label_to_postprocessed_mask_dict)
     # This contains list of centroids mapped to (label, region_info) tuples.
     patch_coord_to_label_region_info_dict = {}
     for label, mask in label_to_postprocessed_mask_dict.items():
+        orig_img_shape = mask.shape
         mask = mask >= 255
         label_image = measure.label(mask)
         for region in measure.regionprops(label_image):
-            region_info = RegionInfo(region)
+            region_info = RegionInfo(region, orig_img_shape)
             patch_coord = tuple([int(x) for x in region.centroid])
             patch_coord_to_label_region_info_dict[patch_coord] = (label, region_info)
 
@@ -506,10 +521,17 @@ def analyse_frame(scene_tag,
                   patches_output_dir=None,
                   masks_output_dir=None,
                   extract_patches_only=False,
+                  coco_format=False,
+                  output_dir=None,
                   no_write=False):
-    work_dir, frame_name = os.path.split(frame_path)
-    frame_base_name = frame_name.split(".%s" % img_ext)[0]
+    frame_dir, frame_name = os.path.split(frame_path)
+    if not output_dir:
+        output_dir = frame_dir
+        if not no_write:
+            logging.info("Writing the intermediate outputs for the frame %s to the frame dir: %s"
+                         % (frame_name, frame_dir))
 
+    frame_base_name = frame_name.split(".%s" % img_ext)[0]
     frame = io.imread(frame_path)
 
     label_to_raw_mask_dict = {}
@@ -517,7 +539,7 @@ def analyse_frame(scene_tag,
         raw_mask = _get_raw_mask(frame, segmentation_model_config)
         label_to_raw_mask_dict[label] = raw_mask
         if not no_write:
-            io.imsave(os.path.join(work_dir, "%s_mask_%s.%s"
+            io.imsave(os.path.join(output_dir, "%s_mask_%s.%s"
                                    % (frame_base_name, label, img_ext)), raw_mask)
 
     label_to_postprocessed_mask_dict = {}
@@ -525,7 +547,7 @@ def analyse_frame(scene_tag,
         postprocessed_mask = LABEL_TO_POSTPROCESS_FUNC_DICT[label](raw_mask)
         label_to_postprocessed_mask_dict[label] = postprocessed_mask
         if not no_write:
-            io.imsave(os.path.join(work_dir, "%s_postprocessed_mask_%s.%s"
+            io.imsave(os.path.join(output_dir, "%s_postprocessed_mask_%s.%s"
                                    % (frame_base_name, label, img_ext)), postprocessed_mask)
 
     # If 'patches_output_dir' has been provided, then just return as only the patches were required.
@@ -567,7 +589,7 @@ def analyse_frame(scene_tag,
                                      validated_patch_coord_to_label_region_info_dict,
                                      LABEL_TO_COLOR_DICT)
     if not no_write:
-        io.imsave(os.path.join(work_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
+        io.imsave(os.path.join(output_dir, "%s_marked.%s" % (frame_base_name, img_ext)), marked_image)
 
     # Format the result.
     # Create the detected_object_info dict.
@@ -596,11 +618,39 @@ def analyse_frame(scene_tag,
     }
 
     if not no_write:
-        with open(os.path.join(work_dir, "%s_report.json" % frame_base_name), "w") as fp:
+        with open(os.path.join(output_dir, "%s_report.json" % frame_base_name), "w") as fp:
             print(result_dict)
             json.dump(result_dict, fp, indent=4, sort_keys=True, default=get_json_serializable)
 
     logging.info("The frame has been analysed: %s" % frame_path)
+
+    if not coco_format:
+        return result_dict
+
+    # Format result as required for Coco evaluation.
+    # Refer to https://github.com/matterport/Mask_RCNN/blob/master/samples/coco/coco.py.
+    logging.info("Formatting the output suitable for Coco evaluation: %s" % frame_path)
+
+    class_ids = []
+    rois = []
+    scores = []
+    masks = []
+
+    for patch_coord, label_region_info in validated_patch_coord_to_label_region_info_dict.items():
+        label, region_info = label_region_info
+        class_id = LABEL_TO_CLASS_ID_DICT[label]
+        class_ids.append(class_id)
+        rois.append(region_info.region.bbox)
+        scores.append(float(region_info.pred_score))
+        masks.append(region_info.mask)
+
+    coco_result = {
+        'class_ids': np.array(class_ids),
+        'rois': np.array(rois),
+        'scores': np.array(scores),
+        'masks': np.dstack(masks)
+    }
+    result_dict['coco_result'] = coco_result
     return result_dict
 
 
@@ -695,6 +745,7 @@ if __name__ == "__main__":
             raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
 
     all_frame_reports = []
+    all_coco_results = []
     for scene_tag in sorted(os.listdir(args.input_data_dir)):
         for frame_file in sorted(os.listdir(os.path.join(args.input_data_dir, scene_tag))):
             frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
@@ -706,7 +757,10 @@ if __name__ == "__main__":
                                          patches_output_dir=args.patches_output_dir,
                                          masks_output_dir=args.masks_output_dir,
                                          extract_patches_only=args.extract_patches_only,
+                                         coco_format=True if args.coco_result_path else False,
+                                         output_dir=args.output_dir,
                                          no_write=args.no_write)
+            all_coco_results.append(frame_report.pop('coco_result', None))
             all_frame_reports.append(frame_report)
 
     if regions_file_report:
@@ -716,3 +770,8 @@ if __name__ == "__main__":
     else:
         with open(args.outfile, "w") as fp:
             json.dump(all_frame_reports, fp, indent=4, sort_keys=True, default=get_json_serializable)
+
+    if args.coco_result_path:
+        with open(args.coco_result_path, "wb") as fp:
+            pickle.dump(all_coco_results, fp)
+            print("The results in the coco evaluation format have been written to %s" % args.coco_result_path)
