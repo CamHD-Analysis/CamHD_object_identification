@@ -46,7 +46,7 @@ import pycamhd.motionmetadata as mmd
 
 import models
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from keras.models import load_model
 # from scipy.ndimage.morphology import binary_fill_holes
 from skimage import io
@@ -184,9 +184,9 @@ def get_json_serializable(o):
 class RegionInfo(object):
     def __init__(self, region, orig_img_shape, pred_score=None):
         self.region = region
-        self._extract_region_info()
         self.pred_score = pred_score
         self.orig_img_shape = orig_img_shape
+        self._extract_region_info()
 
     def _extract_region_info(self):
         self.area = self.region.area
@@ -550,7 +550,7 @@ def analyse_frame(scene_tag,
             io.imsave(os.path.join(output_dir, "%s_postprocessed_mask_%s.%s"
                                    % (frame_base_name, label, img_ext)), postprocessed_mask)
 
-    # If 'patches_output_dir' has been provided, then just return as only the patches were required.
+    # If 'extract_patches_only' and 'patches_output_dir' has been provided, then return after extracting patches.
     if extract_patches_only:
         if not os.path.exists(patches_output_dir):
             raise ValueError("The patches-output-dir must be provided when extract-patches-only argument is provided.")
@@ -648,7 +648,7 @@ def analyse_frame(scene_tag,
         'class_ids': np.array(class_ids),
         'rois': np.array(rois),
         'scores': np.array(scores),
-        'masks': np.dstack(masks)
+        'masks': np.dstack(masks) if len(masks) > 0 else np.array([])
     }
     result_dict['coco_result'] = coco_result
     return result_dict
@@ -745,7 +745,7 @@ if __name__ == "__main__":
             raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
 
     all_frame_reports = []
-    all_coco_results = []
+    all_coco_results = OrderedDict()
     for scene_tag in sorted(os.listdir(args.input_data_dir)):
         for frame_file in sorted(os.listdir(os.path.join(args.input_data_dir, scene_tag))):
             frame_path = os.path.join(args.input_data_dir, scene_tag, frame_file)
@@ -760,7 +760,7 @@ if __name__ == "__main__":
                                          coco_format=True if args.coco_result_path else False,
                                          output_dir=args.output_dir,
                                          no_write=args.no_write)
-            all_coco_results.append(frame_report.pop('coco_result', None))
+            all_coco_results[frame_report['frame']] = frame_report.pop('coco_result', None)
             all_frame_reports.append(frame_report)
 
     if regions_file_report:
