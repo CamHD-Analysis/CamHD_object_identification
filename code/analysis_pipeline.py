@@ -195,8 +195,9 @@ class RegionInfo(object):
         self.bb_length = maxc - minc
         self.bb_width = maxr - minr
 
-        region_mask = np.zeros(self.orig_img_shape)
-        self.mask = region_mask[tuple(self.region.coords.T)] = 1
+        region_mask = np.full(self.orig_img_shape, False, dtype=bool)
+        region_mask[tuple(self.region.coords.T)] = True
+        self.mask = region_mask
 
 
 # TODO: Keep this logic at one place.
