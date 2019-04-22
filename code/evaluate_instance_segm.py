@@ -27,6 +27,7 @@ import logging
 import numpy as np
 import os
 import pickle
+import re
 
 
 IGNORE_SUFFIX = '_hard'
@@ -49,6 +50,12 @@ def get_args():
                         help="The path to the detection results pickle containing the predictions in coco format.")
     parser.add_argument('--class-map',
                         help="The class id to label map JSON file.")
+    parser.add_argument('--include-ignore',
+                        action='store_true',
+                        help="Flag to indicate if the ignore (hard) cases must be considered as dont-case conditions.")
+    parser.add_argument('--display-instances',
+                        action='store_true',
+                        help="Flag to indicate if the instances need to be displayed in marked images.")
     parser.add_argument('--image-ext',
                         dest='img_ext',
                         default='png',
@@ -63,7 +70,7 @@ def get_args():
     return args
 
 
-def _build_coco_results(image_ids, rois, class_ids, scores, masks, class_id_label_map):
+def _build_coco_results(image_ids, rois, class_ids, scores, masks):
     """
     Arrange resutls to match COCO specs in http://cocodataset.org/#format
     """
@@ -100,6 +107,8 @@ def get_res_coco_obj(resutls, image_ids, class_id_label_map):
     coco = COCO()
     coco.dataset["images"] = [{"id": id} for id in image_ids]
     coco.dataset["categories"] = [{'id': id, 'name': label} for id, label in class_id_label_map.items()]
+    # XXX: Hack to patch the img ids.
+    coco.imgs = {id: {"id": id} for id in image_ids}
     coco_obj = coco.loadRes(resutls)
     return coco_obj
 
@@ -112,8 +121,21 @@ def evaluate_coco(gt_coco_obj, dt_coco_obj, image_ids, eval_type="segm"):
     cocoEval.summarize()
 
 
-def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_instances, image_ext="png"):
+def evaluate(images_dir,
+             gt_anno_dir,
+             dt_results,
+             class_id_label_map,
+             include_ignore=False,
+             display_instances=False,
+             img_ext="png"):
     class_label_id_map = {v:k for k, v in class_id_label_map.items()}
+    allowed_classes = list(class_id_label_map.values())
+    if include_ignore:
+        ignore_classes = ["%s%s" % (x, IGNORE_SUFFIX) for x in allowed_classes]
+        allowed_classes.extend(ignore_classes)
+
+    print("Evaluating class labels: %s (ignore suffix: %s)" % (allowed_classes, IGNORE_SUFFIX))
+
     image_ids = list(dt_results.keys())
 
     # Build Coco GT object.
@@ -122,6 +144,7 @@ def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_in
         anno_file = os.path.join(gt_anno_dir, "%s.json" % image_id)
         with open(anno_file) as fp:
             anno_dict = json.load(fp)
+            del anno_dict['imageData']
 
         annos = anno_dict["shapes"]
         if len(annos) < 1:
@@ -134,9 +157,12 @@ def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_in
             cur_anno_res = {"image_id": image_id}
 
             class_label = anno["label"]
+            if class_label not in allowed_classes:
+                continue
+
             if IGNORE_SUFFIX in class_label:
                 cur_anno_res['ignore'] = 1
-                class_label = class_label.split("_")[0]
+                class_label = re.sub('%s$' % IGNORE_SUFFIX, '', class_label)
 
             class_id = class_label_id_map[class_label]
             cur_anno_res['category_id'] = class_id
@@ -148,9 +174,12 @@ def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_in
             cv2.fillPoly(frame_mask, pts=[contours], color=1)
             cur_anno_res['segmentation'] = maskUtils.encode(np.asfortranarray(frame_mask))
 
-            regions = measure.regionprops(measure.label(frame_mask >= 255))
+            regions = measure.regionprops(measure.label(frame_mask > 0))
+            if len(regions) < 1:
+                raise ValueError("No connected region found: %s" % image_id)
+
             if len(regions) > 1:
-                raise ValueError("The length of annotated connected regions is greater than 1.")
+                raise ValueError("The length of annotated connected regions is greater than 1: %s" % image_id)
 
             # Get the bbox.
             bbox = regions[0].bbox
@@ -161,25 +190,25 @@ def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_in
         all_gt_results.extend(cur_image_res)
 
     gt_coco_obj = get_res_coco_obj(all_gt_results, image_ids, class_id_label_map)
+    print("Loaded GT coco object.")
 
     # Build Coco DT object.
     all_dt_results = []
     for image_id, r in dt_results.items():
         res_formatted = _build_coco_results([image_id], r["rois"], r["class_ids"], r["scores"], r["masks"])
-        all_dt_results.append(res_formatted)
+        all_dt_results.extend(res_formatted)
 
     dt_coco_obj = get_res_coco_obj(all_dt_results, image_ids, class_id_label_map)
+    print("Loaded DT coco object.")
 
     # Evaluate using CocoEval.
-    print("\nCOCO Evaluation based on Segmentation:")
+    print("\nRunning Evaluations:")
     evaluate_coco(gt_coco_obj, dt_coco_obj, image_ids, eval_type="segm")
-
-    print("\nCOCO Evaluation based on Bounding Box:")
     evaluate_coco(gt_coco_obj, dt_coco_obj, image_ids, eval_type="bbox")
 
     if display_instances:
         for frame_name, r in dt_results.items():
-            image = np.array(Image.open(os.path.join(images_dir, "%s.%s" % (frame_name, image_ext))))
+            image = np.array(Image.open(os.path.join(images_dir, "%s.%s" % (frame_name, img_ext))))
             visualize.display_instances(image, r['rois'], r['masks'], r['class_ids'], class_id_label_map, r['scores'])
 
     logging.info("Evaluation complete.")
@@ -188,10 +217,17 @@ def evaluate(images_dir, gt_anno_dir, dt_results, class_id_label_map, display_in
 if __name__ == "__main__":
     args = get_args()
 
-    with open(args.dt_results_file, "rb") as fp:
+    with open(args.dt_result_file, "rb") as fp:
         dt_results = pickle.load(fp)
 
     with open(args.class_map) as fp:
         class_id_label_map = json.load(fp)
+        class_id_label_map = {int(k): v for k, v in class_id_label_map.items()}
 
-    evaluate(args.images_dir, args.gt_anno_dir, dt_results, class_id_label_map, image_ext=args.image_ext)
+    evaluate(args.images_dir,
+             args.gt_anno_dir,
+             dt_results,
+             class_id_label_map,
+             include_ignore=args.include_ignore,
+             display_instances=args.display_instances,
+             img_ext=args.img_ext)
