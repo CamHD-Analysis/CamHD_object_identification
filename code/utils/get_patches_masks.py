@@ -116,8 +116,11 @@ def get_patches_masks(anno_work_dir, obj_label, output_dir, backup_dir_raw, back
             continue
 
         # Copy to backup
-        shutil.copy(frame_path, os.path.join(backup_dir_raw, os.path.basename(frame_path)))
-        shutil.copy(anno_path, os.path.join(backup_dir_annotations, os.path.basename(anno_path)))
+        if backup_dir_raw:
+            shutil.copy(frame_path, os.path.join(backup_dir_raw, os.path.basename(frame_path)))
+
+        if backup_dir_annotations:
+            shutil.copy(anno_path, os.path.join(backup_dir_annotations, os.path.basename(anno_path)))
 
         with open(anno_path) as fp:
             anno_dict = json.load(fp)
@@ -146,7 +149,9 @@ def get_patches_masks(anno_work_dir, obj_label, output_dir, backup_dir_raw, back
         regions = regionprops(labeled_mask)
 
         if len(regions) != cur_label_anno_count:
-            raise ValueError("The number of regions is not equal to number of annotations: %s" % anno_path)
+            raise ValueError("The number of regions is not equal to number of annotations: %s "
+                             "(number of regions found: %s, number of annotations: %s)"
+                             % (anno_path, len(regions), cur_label_anno_count))
 
         for region in regions:
             # draw rectangle around segmented coins
