@@ -27,6 +27,7 @@ def get_args():
                         required=True,
                         help="Specify the function to be called. The available list of functions: ['train_unet', 'test_unet'].")
     parser.add_argument('--data-dir',
+                        required=True,
                         help="The path to the data directory containing the patches and masks directories. "
                              "The masks directory is assumed to have names of corresponding patches with suffix - '_mask'."
                              "Valid for functions: 'train_unet'.")
