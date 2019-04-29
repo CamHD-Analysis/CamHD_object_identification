@@ -49,7 +49,16 @@ def resize_images(src_data_dir, dest_data_dir, shape=(256, 256), classification_
 
 
 def center_crop_pad_mask(patch_dir, mask_dir, center_crop_shape=(128, 128)):
-    # Note: Make a copy of data_dir before running this.
+    """
+    Note: Call this on a copied data_dir before running this as this would overwrite the patches.
+    This could be used to create positive patches data for classification model from the segmentation (U-Net) labeled
+    patches and masks data.
+
+    :param patch_dir: The directory containing patches containing the objects.
+    :param mask_dir: The directory containing masks corresponding to each patch in the patch_dir with suffix '_mask'.
+    :param center_crop_shape: The thresholds to decide if the patch needs to be cropped and padded.
+
+    """
     def center_crop_pad(img, cropx, cropy):
         y, x = img.shape[:2]
         startx = x // 2 - (cropx // 2)
