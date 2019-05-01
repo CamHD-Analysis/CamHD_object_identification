@@ -745,6 +745,9 @@ if __name__ == "__main__":
         if not args.patches_output_dir:
             raise ValueError("The patches-output-dir must be provided when extract-patches-only flag is set.")
 
+    if args.output_dir and not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
     all_frame_reports = []
     all_coco_results = OrderedDict()
     for scene_tag in sorted(os.listdir(args.input_data_dir)):

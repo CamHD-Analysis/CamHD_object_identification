@@ -33,6 +33,7 @@ import shutil
 
 LABEL_PATCH_SIZE_MAP = {
     "amphipod": 256,
+    "nonamphipod": 256,
     "star": 256,
     "crab": 256,
     "other": 256,
