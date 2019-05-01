@@ -1,9 +1,0 @@
-{
-    "model_name": "amphipod_unet_1",
-    "model_path": "./amphipod_unet_1.hdf5",
-    "model_type": "segmentation",
-    "input_shape": [256, 256, 3],
-    "rescale": true,
-    "mask_index": 0,
-    "load_model_arch": "unet"
-}
