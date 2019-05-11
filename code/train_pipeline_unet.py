@@ -7,7 +7,7 @@ TODO: Currently the selected models are persisted as a model_config after the tr
 
 """
 
-from models import unet
+from models import unet, unet_batchnorm
 from data_prep import train_generator
 from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 from skimage import io
@@ -27,7 +27,6 @@ def get_args():
                         required=True,
                         help="Specify the function to be called. The available list of functions: ['train_unet', 'test_unet'].")
     parser.add_argument('--data-dir',
-                        required=True,
                         help="The path to the data directory containing the patches and masks directories. "
                              "The masks directory is assumed to have names of corresponding patches with suffix - '_mask'."
                              "Valid for functions: 'train_unet'.")
@@ -54,6 +53,14 @@ def get_args():
                         default=32,
                         help="The batch_size for training. Default: 32."
                              "Valid for functions: 'train_unet'.")
+    parser.add_argument('--lr',
+                        type=float,
+                        default=0.0001,
+                        help="The learning rate for Adam Optimizer. Default: 0.0001."
+                             "Valid for functions: 'train_unet'.")
+    parser.add_argument('--batchnorm',
+                        action="store_true",
+                        help="If this flag is set, then U-Net with batch-normalization would be used.")
     parser.add_argument('--model-outfile',
                         required=True,
                         help="The path to the model output file (HDF5 file)."
@@ -83,27 +90,43 @@ def _get_mask_name(patch_name, img_ext):
     return patch_name.rstrip(".%s" % img_ext) + "_mask.%s" % img_ext
 
 
-def get_train_val_split(data_dir, val_split, patches_dirname, masks_dirname, img_ext):
+def get_train_val_split(data_dir, val_split, patches_dirname, masks_dirname, img_ext, allow_exist=True):
+    train_dir = data_dir + "_train"
+    train_patches_dir = os.path.join(train_dir, patches_dirname)
+    train_masks_dir = os.path.join(train_dir, masks_dirname)
+
+    val_dir = data_dir + "_val"
+    val_patches_dir = os.path.join(val_dir, patches_dirname)
+    val_masks_dir = os.path.join(val_dir, masks_dirname)
+
+    if allow_exist:
+        if os.path.exists(train_dir) and os.path.exists(val_dir):
+            print("Using an existing train-validation split.")
+
+            train_patches_size = len(os.listdir(train_patches_dir))
+            train_masks_size = len(os.listdir(train_masks_dir))
+            val_patches_size = len(os.listdir(val_patches_dir))
+            val_masks_size = len(os.listdir(val_masks_dir))
+
+            assert train_patches_size == train_masks_size, "Existing split is inconsistent!"
+            assert val_patches_size == val_masks_size, "Existing split is inconsistent!"
+
+            return train_dir, val_dir, train_patches_size, val_patches_size
+
     if val_split > 0.5:
         raise ValueError("The validation split of 0.5 and above are not accepted.")
 
-    train_dir = data_dir + "_train"
     if os.path.exists(train_dir):
         raise ValueError("The train_dir already exists: %s" % train_dir)
     os.makedirs(train_dir)
 
-    train_patches_dir = os.path.join(train_dir, patches_dirname)
-    train_masks_dir   = os.path.join(train_dir, masks_dirname)
     os.makedirs(train_patches_dir)
     os.makedirs(train_masks_dir)
 
-    val_dir = data_dir + "_val"
     if os.path.exists(val_dir):
         raise ValueError("The val_dir already exists: %s" % val_dir)
     os.makedirs(val_dir)
 
-    val_patches_dir = os.path.join(val_dir, patches_dirname)
-    val_masks_dir   = os.path.join(val_dir, masks_dirname)
     os.makedirs(val_patches_dir)
     os.makedirs(val_masks_dir)
 
@@ -160,10 +183,27 @@ def train_unet(args):
     train_gen = train_generator(args.batch_size, train_dir, args.patches_dirname, args.masks_dirname, augmentation_args)
     val_gen   = train_generator(args.batch_size, val_dir, args.patches_dirname, args.masks_dirname, {})
 
-    model = unet()
-    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor='val_loss', mode='auto', verbose=1, save_best_only=True)
-    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=20, verbose=0, mode='auto')
+    if args.batchnorm:
+        print("U-Net with batch-Normalization with lr: %f." % args.lr)
+        model = unet_batchnorm(lr=args.lr)
+    else:
+        print("U-Net without batch-Normalization with lr: %f." % args.lr)
+        model = unet(lr=args.lr)
+
+    print("Model Summary:")
+    model.summary()
+
+    monitoring_metric = 'val_mean_iou'
+    monitoring_mode = 'max'
+    print("Monitoring metric: %s (mode: %s)" % (monitoring_metric, monitoring_mode))
+    model_checkpoint = ModelCheckpoint(args.model_outfile, monitor=monitoring_metric, mode=monitoring_mode, verbose=1, save_best_only=True)
+
+    patience = 10
+    early_stopping = EarlyStopping(monitor=monitoring_metric, min_delta=0, patience=patience, verbose=0, mode=monitoring_mode)
+    print("Early stopping with patience: %s" % patience)
+
     callbacks = [model_checkpoint, early_stopping]
+
     if args.tensorboard_logdir:
         tensorboard = TensorBoard(log_dir=args.tensorboard_logdir)
         logging.info("To view tensorboard, run: 'tensorboard --logdir=%s'" % args.tensorboard_logdir)
