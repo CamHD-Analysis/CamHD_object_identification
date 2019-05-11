@@ -22,11 +22,7 @@ def get_args():
 
     args = parser.parse_args()
 
-    logging.basicConfig(filename=args.logfile,
-                        filemode='a',
-                        format='[%(asctime)s - [%(levelname)s]: %(message)s',
-                        datefmt='%H:%M:%S',
-                        level=args.log)
+    logging.basicConfig(level=args.log.upper())
 
     return args
 
@@ -51,6 +47,7 @@ def _run(cmd_list, logfile, py_script=False, restrict_gpu=None, no_write=False, 
     with open(logfile, "a") as outfile:
         if not no_write:
             logging.info("Executing command: %s" % cmd_str)
+            logging.info("Logging to file: %s" % logfile)
             error_code = subprocess.call(cmd, stdout=outfile, stderr=outfile, env=custom_env)
             if error_code != 0:
                 error_msg = "The cmd failed at runtime with error_code %s: %s" % (error_code, cmd_str)
@@ -83,4 +80,5 @@ if __name__ == "__main__":
 
     for i, cmd_logfile in enumerate(commands_logfile_list):
         cmd, cur_logfile = cmd_logfile
-        _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
+        error_code = _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
+        print("Command - %s, executed with error code: %s" % (cmd, error_code))
