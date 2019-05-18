@@ -6,7 +6,7 @@ annotations_work_dir/
 data/
 logs/
 tensorboard_logs/
-trained_models/
-training_logs/
 venv/
+
+*.hdf5
 

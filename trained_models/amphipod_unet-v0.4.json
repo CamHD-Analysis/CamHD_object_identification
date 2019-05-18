@@ -1,0 +1,10 @@
+{
+    "model_name": "amphipod_unet-v0.4",
+    "model_description": "set_1_2_p016: 20180701_20180831 (261 positive) + 201809_201810 (276 positive, without p7 and p8) = 537 positive. Selected scenes: d5A_p0_z1, d5A_p1_z1, d5A_p6_z1.",
+    "model_path": "./amphipod_unet-v0.4.hdf5",
+    "model_type": "segmentation",
+    "input_shape": [256, 256, 3],
+    "rescale": true,
+    "mask_index": 0,
+    "load_model_arch": "unet_batchnorm"
+}
