@@ -67,17 +67,26 @@ if __name__ == "__main__":
     # TODO: parametrize this.
     # Manually add the parameter values.
     commands_logfile_list = [
-        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1 --batchnorm --val-split 0.1 --epochs 300 --batch-size 4 --model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.1.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.1.log"),
+        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1 "
+         "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
+         "--model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.1.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.1.log"),
 
-        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_p016 --batchnorm --val-split 0.1 --epochs 300 --batch-size 4 --model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.2.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.2.log"),
+        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_p016 "
+         "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
+         "--model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.2.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.2.log"),
 
-        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_2 --batchnorm --val-split 0.1 --epochs 300 --batch-size 4 --model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.3.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.3.log"),
+        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_2 "
+         "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
+         "--model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.3.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.3.log"),
 
-        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_2_p016 --batchnorm --val-split 0.1 --epochs 300 --batch-size 4 --model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.4.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.4.log")
+        ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1_2_p016 "
+         "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
+         "--model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.4.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.4.log")
     ]
 
     restrict_gpu = "0"
 
+    commands_logfile_list = commands_logfile_list
     for i, cmd_logfile in enumerate(commands_logfile_list):
         cmd, cur_logfile = cmd_logfile
         error_code = _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
