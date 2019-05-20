@@ -113,7 +113,7 @@ if __name__ == "__main__":
     restrict_gpu = "1"
 
     commands_logfile_list = commands_logfile_list
-    for i, cmd_logfile in enumerate(commands_logfile_list[:1]):
+    for i, cmd_logfile in enumerate(commands_logfile_list):
         cmd, cur_logfile = cmd_logfile
         error_code = _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
         print("\nCommand - %s, executed with error code: %s" % (cmd, error_code))
