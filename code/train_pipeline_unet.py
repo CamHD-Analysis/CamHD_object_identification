@@ -70,7 +70,8 @@ def get_args():
                              "Valid for functions: 'train_unet'.")
     parser.add_argument('--batchnorm',
                         action="store_true",
-                        help="If this flag is set, then U-Net with batch-normalization would be used.")
+                        help="If this flag is set, then U-Net with batch-normalization would be used. "
+                             "Valid for functions: 'train_unet', 'test_unet'.")
     parser.add_argument('--model-outfile',
                         required=True,
                         help="The path to the model output file (HDF5 file)."
@@ -243,7 +244,11 @@ def test_unet(args):
     if not os.path.exists(args.test_output_dir):
         os.makedirs(args.test_output_dir)
 
-    model = unet()
+    if args.batchnorm:
+        model = unet_batchnorm()
+    else:
+        model = unet()
+
     model.load_weights(args.model_outfile)
 
     for patch_name in os.listdir(args.test_dir):
