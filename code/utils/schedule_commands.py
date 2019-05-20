@@ -15,7 +15,7 @@ import sys
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Run the Training Pipeline for training CNN models.")
+    parser = argparse.ArgumentParser(description="Schedule set of commands.")
     parser.add_argument("--log",
                         default="INFO",
                         help="Specify the log level. Default: INFO.")
@@ -66,6 +66,63 @@ if __name__ == "__main__":
 
     # TODO: parametrize this.
     # Manually add the parameter values.
+
+    # Running analysis pipeline on testbed for different algorithms.
+    analysis_config_dir = "/home/bhuvan/Projects/CamHD_object_identification/analysis_configs"
+    test_out_dir = "/home/bhuvan/Projects/camhd_project_details/analysis_pipeline_test_dir/amphipod_testbed_analysis/res_dirs"
+    log_dir = "/home/bhuvan/Projects/camhd_project_details/analysis_pipeline_test_dir/amphipod_testbed_analysis/res_dirs/analysis_logs"
+
+    analysis_configs = [
+        "analysis_eval-1-1",
+        "analysis_eval-1-2",
+        "analysis_eval-1-3",
+        "analysis_eval-2-1",
+        "analysis_eval-2-2",
+        "analysis_eval-2-3",
+        "analysis_eval-3-1",
+        "analysis_eval-3-2",
+        "analysis_eval-3-3",
+    ]
+
+    commands_logfile_list = []
+    for analysis_config in analysis_configs:
+        cur_analysis_name = "res-%s" % analysis_config
+        cur_outdir = os.path.join(test_out_dir, cur_analysis_name)
+        cur_cmd = [
+            "/home/bhuvan/Projects/CamHD_object_identification/code/analysis_pipeline.py",
+            "--input-data-dir", "/home/bhuvan/Projects/camhd_project_details/analysis_pipeline_test_dir/amphipod_testbed_analysis/test_set_frames",
+            "--config",           os.path.join(analysis_config_dir, "%s.json" % analysis_config),
+            "--output-dir",       os.path.join(cur_outdir, "our_frame_output_dir"),
+            "--outfile",          os.path.join(cur_outdir, "our_report.json"),
+            "--coco-result-path", os.path.join(cur_outdir, "our_results_coco_format.pickle")
+        ]
+        cur_logfile = os.path.join(log_dir, "%s.log" % cur_analysis_name)
+        commands_logfile_list.append((" ".join(cur_cmd), cur_logfile))
+
+        # Evaluation script.
+        cur_cmd = [
+            "/home/bhuvan/Projects/CamHD_object_identification/code/evaluate_instance_segm.py",
+            "--images-dir",  "/home/bhuvan/Projects/camhd_project_details/analysis_pipeline_test_dir/amphipod_testbed_analysis/input_frames",
+            "--gt-anno-dir", "/home/bhuvan/Projects/camhd_project_details/analysis_pipeline_test_dir/amphipod_testbed_analysis/ground_truth_annos",
+            "--class-map", "/home/bhuvan/Projects/CamHD_object_identification/code/class_id_label_map.json",
+            "--dt-result-file", os.path.join(cur_outdir, "our_results_coco_format.pickle"),
+        ]
+        cur_logfile = os.path.join(cur_outdir, "evaluation_report.txt")
+        commands_logfile_list.append((" ".join(cur_cmd), cur_logfile))
+
+    restrict_gpu = "1"
+
+    commands_logfile_list = commands_logfile_list
+    for i, cmd_logfile in enumerate(commands_logfile_list[:1]):
+        cmd, cur_logfile = cmd_logfile
+        error_code = _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
+        print("\nCommand - %s, executed with error code: %s" % (cmd, error_code))
+
+
+###
+# Old command lists:
+"""
+    # Running U-Net training.
     commands_logfile_list = [
         ("/home/bhuvan/Projects/CamHD_object_identification/code/train_pipeline_unet.py --func train_unet --data-dir /home/bhuvan/Projects/CamHD_object_identification/data/amphipod/amphipod_segmentation/set_1 "
          "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
@@ -83,11 +140,5 @@ if __name__ == "__main__":
          "--batchnorm --val-split 0.1 --epochs 1000 --batch-size 2 --lr 0.001 "
          "--model-outfile /home/bhuvan/Projects/CamHD_object_identification/trained_models/amphipod_unet-v0.4.hdf5", "/home/bhuvan/Projects/CamHD_object_identification/training_logs/amphipod_unet-v0.4.log")
     ]
-
-    restrict_gpu = "0"
-
-    commands_logfile_list = commands_logfile_list
-    for i, cmd_logfile in enumerate(commands_logfile_list):
-        cmd, cur_logfile = cmd_logfile
-        error_code = _run(cmd.split(" "), cur_logfile, py_script=True, restrict_gpu=restrict_gpu)
-        print("Command - %s, executed with error code: %s" % (cmd, error_code))
+"""
+# Old command lists
