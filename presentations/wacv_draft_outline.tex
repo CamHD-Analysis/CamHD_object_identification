@@ -1,0 +1,188 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{wacv}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% Include other packages here, before hyperref.
+
+% If you comment hyperref and then uncomment it, you should delete
+% egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
+% run, let it finish, and you should be clear).
+%\usepackage[pagebackref=true,breaklinks=true,letterpaper=true,colorlinks,bookmarks=false]{hyperref}
+
+%\wacvfinalcopy % *** Uncomment this line for the final submission
+
+\def\wacvPaperID{****} % *** Enter the wacv Paper ID here
+\def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
+
+% Pages are numbered in submission mode, and unnumbered in camera-ready
+\ifwacvfinal\pagestyle{empty}\fi
+\setcounter{page}{1}
+\begin{document}
+
+%%%%%%%%% TITLE
+\title{Instance Segmentation of Deep Sea Scaleworms at Hydrothermal Vent}
+
+% Authors at the same institution
+%\author{First Author \hspace{2cm} Second Author \\
+%Institution1\\
+%{\tt\small firstauthor@i1.org}
+%}
+% Authors at different institutions
+\author{First Author \\
+Institution1\\
+{\tt\small firstauthor@i1.org}
+\and
+Second Author \\
+Institution2\\
+{\tt\small secondauthor@i2.org}
+}
+
+\maketitle
+\ifwacvfinal\thispagestyle{empty}\fi
+
+%%%%%%%%% ABSTRACT
+\begin{abstract}
+   #TODO: Written at the end.
+\end{abstract}
+
+%%%%%%%%% BODY TEXT
+\section{Introduction}
+
+- OOI motivation, NSF goals etc. Cabled array setup in ocean. Observe and Explore deep sea (depth) and hydrothermal vent. probably an image to show where it is located. Mushroom, the hydrothermal vent being observed.
+
+- CamHD instrument. Videos spanning the Mushroom, different zoom levels, taken continuously over years. Capturing colorful diverse benthic biology site. Extreme environment - temp (different between head (freezing) and toe (burning)), pressure, toxins, no sunlight. But due to Chemosynthesis: life is thriving, thanks to bacteria. Many organisms live in this area - examples like tubeworms, arachnids, starfishes, crabs, scaleworms and many more unidentified species. Underwater robots helped in discovering these species, and such short-term video surveillances were mostly manually analyzed to study these species. We need long-term population studies can unravel many mysteries of this world and help us in understanding how to conserve such environments. But it was hard to study these areas due to their challenging locations. But, with video data from CamHD (which we have open-sourced for research purposes), we have means to perform long-term studies this region, but manually not possible because of the volume of data. Therefore, automatic analysis is required.
+
+- In this paper, we consider one such species found in these videos - Scaleworms, which have been biologically studied and found to have interesting properties as found in the Nature article \href{Nature article}{https://www.nature.com/articles/srep46205}, and from \href{another study}{https://pdfs.semanticscholar.org/49ae/4831505b891f771d468bcd9f5df8ca3caf92.pdf}. We propose an application of an instance segmentation method to identify, count and estimate the size of each scaleworm from a video frame. We believe that such a system will help in opening up the possibilities for large-scale population studies on such species, which currently is not available as fr as we know.
+
+- Challenge: We discuss various challenges in analysing this data. Video, non-constant static regions, schliren distortions, lighting failures, and the nature of our target object - scale worms. The scaleworms vary in size, color shades and often look camafloughed due to the dense surrounding having dynamic colors. Also, they often stay on plant-like tube worms which keep oscillating at times due to the force of the fumes coming out of the vent. And the shortage of labeled data.
+
+<a frame image where scaleworms are marked in green arrow marks and confusing objects are marked with red arrow marks and labeled to give reader an idea of the image we are dealing with>
+
+Paper organization: lit-survey, problem statement, methodology, results with discussions and limitations, conclusion and future work.
+
+%-------------------------------------------------------------------------
+\section{Literature Review}
+
+- Previous application reviews
+Previous research containing the underwater object detection and segmentation. What methods were used. Unsupervised image processing methods, like histogram equalization or background separation would not work in our case. How our challenges are different.
+
+    - https://ieeexplore.ieee.org/document/8698738
+
+    - https://www.nature.com/articles/s41598-018-32089-8
+ 
+    - http://ceur-ws.org/Vol-1866/paper_166.pdf
+ 
+    - https://www.researchgate.net/publication/266632361_Underwater_Real-Time_Fish_Recognition_by_Image_Processing
+ 
+    - https://aisel.aisnet.org/cgi/viewcontent.cgi?article=1739&context=amcis2006
+ 
+    - https://ieeexplore.ieee.org/abstract/document/1315079
+
+- Related methods review
+    - U-Net, biomedical image scenario seems closer to our scenario, and exploring the popular U-Net model for segmentation. Its pros and cons.
+
+    - MaskRCNN: pros and cons.
+
+    We aim to derive inspiration from these methods and propose a simple framework, which is easy to interpret and hence debug, and which scales well with more train data and easy to maintain.
+
+%------------------------------------------------------------------------
+\section{Proposed Methodology}
+
+Here we first define our objectives and evaluation metrics. Then data preprocessing to get frames from videos which would be used as input images to our instance segmentation pipeline. 
+
+%-------------------------------------------------------------------------
+\subsection{Problem Statement}
+(here we define objectively the tasks and evaluations metrics)
+- get a segmentation mask for each scaleworm, distinguish each scaleworm and get a score ([0,1]) for each detection.
+
+- evaluate using Average Precision @ 50\% IOU.
+
+%-------------------------------------------------------------------------
+\subsection{Data Pre-processing}
+- Videos of optical flow files to region files
+
+- Classification of regions files into static scene_tags
+
+- Choosing particular scenes because thats where we can see scaleworms relatively in a clear way. 
+
+%-------------------------------------------------------------------------
+\subsection{Joint UNet-CNN Instance Segmentation Model.}
+
+- challenge is less labeled data.
+
+- small patches: less tensor sizes, easy to fit on a local GPU. less context, less confusion.
+
+<image to show center crop and stitch>
+
+<flowchart>
+
+- Flowchart and explanation of each part. Reasoning for each decision (like batchnorm).
+
+- Batch norm efficacy. val_mean_iou vs number of epochs, for with batchnorm vs without bathcnorm. (should this be in results section? this kind of helped in making the decision for the methodology, so this can be in methodology also, right?)
+
+- Easy to debug and fix the model and work with limited labeled data which is essential when such data cant be crowdsourced for labeling.
+
+- Sparse labeling is important because its hard to tag each and every scaleworm.
+
+(include precise details, in training time and in inference time.)
+
+%-------------------------------------------------------------------------
+\section{Results and Discussion}
+
+<Unet level training masks, and predicted mask>.
+
+<flow of images in the pipeline to get the final output.> show the segmentations, but with overlay, its not really visible, so remove the overlay in the last image.
+
+- test set details. how it was created.
+- train data details, set 1 (2-months), set 2 (adding 2 more months data), set 3 (adding some selective negative patches).
+
+- <table> with both unet+cnn trained on set1, set2, and set3. adding data helps in increasing the average precision. Therefore, we can spend more on getting the data to get better model.
+
+- But this concerns maintainability, since we have to train two different models. Understand the imnprovement in average precision by just CNN or Just UNet. 
+
+- <table> Keep v0.4 UNet constant, and keep adding data and training CNN. We observe a great increment. So CNN model contribues a lot.
+
+- <table> What if we consider UNet trained on very less data, i.e., set 1. Still CNN keeps increasing the accuracy, but after some point it tends to not lead to high increase in accuracy. At that time, we might want to update UNet model.
+
+- <table> show that keeping CNN model constant, improvement in UNet did not improve in any accuracy. This is mainly the case, because our final score mainly depends on CNN. (So this table might not be very useful)
+
+-<training time on dataset of x size with batchsize, and inference time on an image>
+
+\subsection{Advantages}
+<Image showing where it is still not working>
+- Can be overcome by iteratively identifying and all new negative patches. And thats how we can debug and control the model.
+
+- Sparse labeling will suffice.
+
+- Worked on relatively less data compared to the requirement of other Models which were not feasible with such low amount of data. (Hard to claim this. So we can try to put a reference showing that Other models need a lot of data.)
+
+- Training and Testing since done on small patches, it can fit in personal computer GPU's like GTX 970. And relativels runs fast because of less parameters.
+
+\subsection{Disadvantages}
+- The score doesn't quantify the errors from UNet. Since CNN is the main contribution for getting the improvement, it is ok. But if we wanted Average recall, then we would need to propagate errors from UNet as well.
+
+- We had a relatively small test set. Results from larger test sets could be useful. But hard to get more dense labeling for testing purpose.
+
+%-------------------------------------------------------------------------
+\section{Conclusion and Future Work}
+
+This provides a decent result with a fairly simple model to start getting structures metadata info like count scaleworms, and the size of each scaleworm, in each of the scenes for a video. it is easy to debug and understand what kind of data needs to be added to improve it, and therefore by adding more data it has proven to improve, and especially by adding specific datam, it would improve in a larger magnitude. If run on all the data, we get a temporal distribution of scaleworm population, which could be very useful dataset to perform population study espectially by comparing the with the temperature at the hydrothermal vent to understand their behavior.
+
+Future work may consider trying other more complex models on the data. MaskRCNN, PaNet could be tried. If segmentation is not required not, SSD, FasterRCNN can be tried on this data. The temporal information in the video, can also be exploited to identify the scaleworms with higher precision, as other objects would occilate but scaleworm wouldn't be oscillating in a short video-segment.
+
+This prototype could help in adopting such techniques to such many other different organisms, some of which pose more challenges, and could help benthic biologists explore more of this hidden world of rich and diverse ecosystem near hydrothermal vents.
+
+%-------------------------------------------------------------------------
+
+{\small
+\bibliographystyle{ieee}
+\bibliography{egbib}
+}
+
+
+\end{document}
