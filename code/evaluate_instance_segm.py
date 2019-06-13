@@ -11,6 +11,10 @@ Input:
 - Path to the result pickle file containing the predicted outputs in coco format, which is a list of dictionaries.
 - Path to the JSON file containing the class_id to class_label map.
 
+
+Note: This requires few changes to be patched to the "cocoapi" library. The patch diff can be found in
+the 'code' directory of this repository (code/cocoapi_diff.txt).
+
 """
 
 from mrcnn import visualize

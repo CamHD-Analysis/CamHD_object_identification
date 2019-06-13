@@ -1,0 +1,33 @@
+(cvenv) bhuvan@Feline:~/Projects/cocoapi$ git diff
+diff --git a/PythonAPI/pycocotools/coco.py b/PythonAPI/pycocotools/coco.py
+index dc9972b..fed413a 100644
+--- a/PythonAPI/pycocotools/coco.py
++++ b/PythonAPI/pycocotools/coco.py
+@@ -305,7 +305,7 @@ class COCO:
+ 
+         print('Loading and preparing results...')
+         tic = time.time()
+-        if type(resFile) == str or type(resFile) == unicode:
++        if type(resFile) == str or type(resFile) == bytes:
+             anns = json.load(open(resFile))
+         elif type(resFile) == np.ndarray:
+             anns = self.loadNumpyAnnotations(resFile)
+@@ -407,8 +407,8 @@ class COCO:
+         Convert annotation which can be polygons, uncompressed RLE to RLE.
+         :return: binary mask (numpy 2D array)
+         """
+-        t = self.imgs[ann['image_id']]
+-        h, w = t['height'], t['width']
++        # TODO: Hardcoded value for the amphipod data.
++        h, w = 1080, 1920
+         segm = ann['segmentation']
+         if type(segm) == list:
+             # polygon -- a single object might consist of multiple parts
+@@ -430,4 +430,5 @@ class COCO:
+         """
+         rle = self.annToRLE(ann)
+         m = maskUtils.decode(rle)
+-        return m
+\ No newline at end of file
++        return m
++
