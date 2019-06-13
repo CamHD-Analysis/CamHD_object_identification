@@ -1,0 +1,3 @@
+data/**/*.png
+annotations_work_dir/**/*.png
+annotations_work_dir/**/*.json
