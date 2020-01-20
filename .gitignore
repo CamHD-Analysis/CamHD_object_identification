@@ -8,6 +8,7 @@ logs/
 tensorboard_logs/
 venv/
 retraining_analysis/data*/*
+retraining_analysis/training_logs/
 
 *.hdf5
 
