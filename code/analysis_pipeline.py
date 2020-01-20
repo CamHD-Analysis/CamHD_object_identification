@@ -220,7 +220,11 @@ def get_patch(img, center_coord, patch_size, padding_check=True):
 
 
 def _get_tf_model(model_config):
-    model_path = os.path.join(TRAINED_MODELS_DIR, model_config["model_path"])
+    model_path = model_config["model_path"]
+    if not os.path.exists(model_path):
+        logging.info("The model_path is being inferred relative to %s." % TRAINED_MODELS_DIR)
+        model_path = os.path.join(TRAINED_MODELS_DIR, model_config["model_path"])
+
     if model_path not in MODEL_CACHE:
         if "load_model_arch" in model_config:
             model = getattr(models, model_config["load_model_arch"])()

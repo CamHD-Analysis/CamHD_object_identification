@@ -3,8 +3,6 @@
 """
 Train a CNN classification model.
 
-TODO: Currently the selected models are persisted as a model_config after the training done using this script.
-
 # Ref: https://blog.keras.io/building-powerful-image-classification-models-using-very-little-data.html
 # Ref: https://keras.io/applications/#vgg16
 
@@ -16,6 +14,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.preprocessing.image import ImageDataGenerator
 
 import argparse
+import json
 import logging
 import os
 import random
@@ -227,6 +226,32 @@ def train_cnn(args):
                         callbacks=callbacks)
 
     logging.info("The trained model has been saved in %s" % args.model_outfile)
+
+    # Create a model config for the trained model.
+    model_config = {
+        "model_name": "%s" % os.path.basename(args.data_dir), # Creating model_name from the basename of the data dir.
+        "train_data_desc": "Path: %s." % args.data_dir,
+        "model_path": "%s" % os.path.abspath(args.model_outfile),
+        "type": "classification",
+        "input_shape": [256, 256, 3], # To be checked by user.
+        "rescale": True, # To be checked by user.
+        "valid_class": "amphipod",
+        "classes": [
+            "amphipod",
+            "nonamphipod"
+        ],
+        "prob_thresholds": {
+            "amphipod": 0.7,
+            "nonamphipod": 0.3
+        },
+        "adjust_patch_size": True # To be checked by user depending on the train data provided and the analysis pipeline.
+    }
+
+    model_config_path = os.path.splitext(args.model_outfile)[0] + ".json"
+    with open(model_config_path, 'w') as fp:
+        json.dump(model_config, fp, sort_keys=True, indent=4)
+
+    logging.info("The model config for the train model has been saved in %s. Please verify and update description." % model_config_path)
 
 
 def test_cnn(args):

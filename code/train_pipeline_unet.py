@@ -3,8 +3,6 @@
 """
 Train a U-Net segmentation model.
 
-TODO: Currently the selected models are persisted as a model_config after the training done using this script.
-
 """
 
 from models import unet, unet_batchnorm
@@ -13,6 +11,7 @@ from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 from skimage import io
 
 import argparse
+import json
 import logging
 import numpy as np
 import os
@@ -229,6 +228,24 @@ def train_unet(args):
                         callbacks=callbacks)
 
     logging.info("The trained model has been saved in %s" % args.model_outfile)
+
+    # Create a model config for the trained model.
+    model_config = {
+        "model_name": "%s" % os.path.basename(args.data_dir), # Creating model_name from the basename of the data dir.
+        "train_data_desc": "Path: %s." % args.data_dir,
+        "model_path": "%s" % os.path.abspath(args.model_outfile),
+        "model_type": "segmentation",
+        "input_shape": [256, 256, 3], # To be checked by user.
+        "rescale": True, # To be checked by user.
+        "mask_index": 0, # This might change in future if masks have multi-class.
+        "load_model_arch": "unet_batchnorm" if args.batchnorm else "unet"
+    }
+
+    model_config_path = os.path.splitext(args.model_outfile)[0] + ".json"
+    with open(model_config_path, 'w') as fp:
+        json.dump(model_config, fp, sort_keys=True, indent=4)
+
+    logging.info("The model config for the train model has been saved in %s. Please verify and update description." % model_config_path)
 
 
 def test_unet(args):

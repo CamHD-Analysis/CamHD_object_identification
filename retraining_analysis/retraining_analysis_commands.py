@@ -162,3 +162,8 @@ add_cnp("CNP-orig", "vgg/vgg-500_RCP-200_CNP", 200)
 add_cnp("CNP-orig", "vgg/vgg-500_RCP-300_CNP", 300)
 add_cnp("CNP-orig", "vgg/vgg-500_RCP-400_CNP", 400)
 add_cnp("CNP-orig", "vgg/vgg-500_RCP-500_CNP", 500)
+
+
+### Individual Model Training.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-100 --batchnorm --val-split 0.1 --epochs 300 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-100.hdf5 > retraining_analysis/training_logs/unet-100.log 2>&1
+
