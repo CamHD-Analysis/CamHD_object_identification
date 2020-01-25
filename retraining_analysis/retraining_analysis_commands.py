@@ -241,7 +241,7 @@ CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data
 
 
 ### Running analysis on test bed.
-python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_2 > retraining_analysis/run_2/training_logs/analysis-master.log 2>&1 [TODO]
+python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_2 > retraining_analysis/run_2/training_logs/analysis-master.log 2>&1
 
 
 ### Run: run_3
@@ -280,10 +280,7 @@ CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data
 
 
 ### Running analysis on test bed.
-python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_3 > retraining_analysis/run_3/training_logs/analysis-master.log 2>&1 [TODO]
-
-
-
+python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_3 > retraining_analysis/run_3/training_logs/analysis-master.log 2>&1 [IN PROCESS]
 
 
 # Checking trained models: update the run_<number> accordingly.
@@ -319,3 +316,6 @@ tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-300_CNP.log
 tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-400_CNP.log
 
 tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-500_CNP.log
+
+
+# Collate the results in the google sheets: https://docs.google.com/spreadsheets/d/1pDnlNZXFtmPMJ12V6ZRcO62kTKDfmNye_-iV0I7XuM8/edit?usp=sharing.
