@@ -66,6 +66,9 @@ import pickle
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
+# Forcing to run only on one GPU since it is having issues with cuDNN.
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 FRAME_RESOLUTION = (1080, 1920)
 
 # TODO: Avoid defaulting deployment once this information is available from the regions files.

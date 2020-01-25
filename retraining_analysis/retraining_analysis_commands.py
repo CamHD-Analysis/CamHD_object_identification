@@ -83,6 +83,7 @@ for rcp_image_file in rcp_images:
 
 
 # Creating data chunks for retraining analysis after copying unet orig data andd vgg orig data with RCP added. 
+# Run from root_dir/retraining_analysis/data-retraining-analysis/run_<run_number>.
 
 import os
 import glob
@@ -110,14 +111,6 @@ def unet_selection(src_dir, dest_dir, count):
         shutil.copy(mask, os.path.join(dest_masks_dir, os.path.basename(mask)))
 
 
-unet_selection("unet-orig", "unet/unet-5", 5)
-unet_selection("unet-orig", "unet/unet-100", 100)
-unet_selection("unet-orig", "unet/unet-200", 200)
-unet_selection("unet-orig", "unet/unet-300", 300)
-unet_selection("unet-orig", "unet/unet-400", 400)
-unet_selection("unet-orig", "unet/unet-500", 500)
-
-
 def vgg_selection(src_dir, dest_dir, count):
     src_pos_dir = os.path.join(src_dir, "amphipod")
     src_neg_dir = os.path.join(src_dir, "nonamphipod")
@@ -135,17 +128,10 @@ def vgg_selection(src_dir, dest_dir, count):
             shutil.copy(patch, os.path.join(cur_dest_dir, os.path.basename(patch)))
 
 
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-5_RCP-0_CNP", 5)
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-100_RCP-0_CNP", 100)
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-200_RCP-0_CNP", 200)
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-300_RCP-0_CNP", 300)
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-400_RCP-0_CNP", 400)
-vgg_selection("vgg-orig_RCP-0_CNP", "vgg/vgg-500_RCP-0_CNP", 500)
 
+def add_cnp(cnp_src_dir, src_data_dir, dest_dir, count):
+    shutil.copytree(src_data_dir, dest_dir)
 
-# Manually copy the above created directory - "vgg-500_RCP-0_CNP" - for respective CNP counts.
-
-def add_cnp(cnp_src_dir, dest_dir, count):
     dest_neg_dir = os.path.join(dest_dir, "nonamphipod")
 
     cnp_patches = glob.glob(os.path.join(cnp_src_dir, "*.png"))
@@ -157,45 +143,179 @@ def add_cnp(cnp_src_dir, dest_dir, count):
         shutil.copy(patch, os.path.join(dest_neg_dir, os.path.basename(patch)))
 
 
-add_cnp("CNP-orig", "vgg/vgg-500_RCP-100_CNP", 100)
-add_cnp("CNP-orig", "vgg/vgg-500_RCP-200_CNP", 200)
-add_cnp("CNP-orig", "vgg/vgg-500_RCP-300_CNP", 300)
-add_cnp("CNP-orig", "vgg/vgg-500_RCP-400_CNP", 400)
-add_cnp("CNP-orig", "vgg/vgg-500_RCP-500_CNP", 500)
+unet_selection("../unet-orig", "unet/unet-100", 100)
+unet_selection("../unet-orig", "unet/unet-200", 200)
+unet_selection("../unet-orig", "unet/unet-300", 300)
+unet_selection("../unet-orig", "unet/unet-400", 400)
+unet_selection("../unet-orig", "unet/unet-500", 500)
+
+
+vgg_selection("../vgg-orig_RCP-0_CNP", "vgg/vgg-100_RCP-0_CNP", 100)
+vgg_selection("../vgg-orig_RCP-0_CNP", "vgg/vgg-200_RCP-0_CNP", 200)
+vgg_selection("../vgg-orig_RCP-0_CNP", "vgg/vgg-300_RCP-0_CNP", 300)
+vgg_selection("../vgg-orig_RCP-0_CNP", "vgg/vgg-400_RCP-0_CNP", 400)
+vgg_selection("../vgg-orig_RCP-0_CNP", "vgg/vgg-500_RCP-0_CNP", 500)
+
+add_cnp("../CNP-orig", "vgg/vgg-500_RCP-0_CNP", "vgg/vgg-500_RCP-100_CNP", 100)
+add_cnp("../CNP-orig", "vgg/vgg-500_RCP-0_CNP", "vgg/vgg-500_RCP-200_CNP", 200)
+add_cnp("../CNP-orig", "vgg/vgg-500_RCP-0_CNP", "vgg/vgg-500_RCP-300_CNP", 300)
+add_cnp("../CNP-orig", "vgg/vgg-500_RCP-0_CNP", "vgg/vgg-500_RCP-400_CNP", 400)
+add_cnp("../CNP-orig", "vgg/vgg-500_RCP-0_CNP", "vgg/vgg-500_RCP-500_CNP", 500)
 
 
 ### Individual Model Training.
+# Run from root dir.
+
+### Run: run_1
 # UNet training.
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-100 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-100.hdf5 > retraining_analysis/training_logs/unet-100.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_1/unet/unet-100 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_1/trained_models/unet-100.hdf5 > retraining_analysis/run_1/training_logs/unet-100.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-200 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-200.hdf5 > retraining_analysis/training_logs/unet-200.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_1/unet/unet-200 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_1/trained_models/unet-200.hdf5 > retraining_analysis/run_1/training_logs/unet-200.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-300 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-300.hdf5 > retraining_analysis/training_logs/unet-300.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_1/unet/unet-300 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_1/trained_models/unet-300.hdf5 > retraining_analysis/run_1/training_logs/unet-300.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-400 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-400.hdf5 > retraining_analysis/training_logs/unet-400.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_1/unet/unet-400 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_1/trained_models/unet-400.hdf5 > retraining_analysis/run_1/training_logs/unet-400.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/unet/unet-500 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/trained_models/unet-500.hdf5 > retraining_analysis/training_logs/unet-500.log 2>&1
-
--TODO: If mean_iou has not converged to something above 0.9, then retry. [rerun: unet-200]
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_1/unet/unet-500 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_1/trained_models/unet-500.hdf5 > retraining_analysis/run_1/training_logs/unet-500.log 2>&1
 
 # VGG training.
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-100_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-100_RCP-0_CNP.hdf5 > training_logs/vgg-100_RCP-0_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-100_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-100_RCP-0_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-100_RCP-0_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-200_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-200_RCP-0_CNP.hdf5 > training_logs/vgg-200_RCP-0_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-200_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-200_RCP-0_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-200_RCP-0_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-300_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-300_RCP-0_CNP.hdf5 > training_logs/vgg-300_RCP-0_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-300_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-300_RCP-0_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-300_RCP-0_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-400_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-400_RCP-0_CNP.hdf5 > training_logs/vgg-400_RCP-0_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-400_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-400_RCP-0_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-400_RCP-0_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-0_CNP.hdf5 > training_logs/vgg-500_RCP-0_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-0_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-0_CNP.log 2>&1
 
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-100_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-100_CNP.hdf5 > training_logs/vgg-500_RCP-100_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-100_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-100_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-100_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-200_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-200_CNP.hdf5 > training_logs/vgg-500_RCP-200_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-200_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-200_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-200_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-300_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-300_CNP.hdf5 > training_logs/vgg-500_RCP-300_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-300_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-300_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-300_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-400_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-400_CNP.hdf5 > training_logs/vgg-500_RCP-400_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-400_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-400_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-400_CNP.log 2>&1
 
-CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/vgg/vgg-500_RCP-500_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/trained_models/vgg-500_RCP-500_CNP.hdf5 > training_logs/vgg-500_RCP-500_CNP.log 2>&1
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_1/vgg/vgg-500_RCP-500_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_1/trained_models/vgg-500_RCP-500_CNP.hdf5 > retraining_analysis/run_1/training_logs/vgg-500_RCP-500_CNP.log 2>&1
+
+### Running analysis on test bed.
+/home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_1
+
+
+
+### Run: run_2
+# UNet training.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_2/unet/unet-100 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_2/trained_models/unet-100.hdf5 > retraining_analysis/run_2/training_logs/unet-100.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_2/unet/unet-200 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_2/trained_models/unet-200.hdf5 > retraining_analysis/run_2/training_logs/unet-200.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_2/unet/unet-300 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_2/trained_models/unet-300.hdf5 > retraining_analysis/run_2/training_logs/unet-300.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_2/unet/unet-400 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_2/trained_models/unet-400.hdf5 > retraining_analysis/run_2/training_logs/unet-400.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_2/unet/unet-500 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_2/trained_models/unet-500.hdf5 > retraining_analysis/run_2/training_logs/unet-500.log 2>&1
+
+# VGG training - RCP without CNP.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-100_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-100_RCP-0_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-100_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-200_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-200_RCP-0_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-200_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-300_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-300_RCP-0_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-300_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-400_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-400_RCP-0_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-400_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-0_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-0_CNP.log 2>&1
+
+# VGG training - RCP with CNP.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-100_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-100_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-100_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-200_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-200_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-200_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-300_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-300_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-300_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-400_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-400_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-400_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_2/vgg/vgg-500_RCP-500_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_2/trained_models/vgg-500_RCP-500_CNP.hdf5 > retraining_analysis/run_2/training_logs/vgg-500_RCP-500_CNP.log 2>&1
+
+
+### Running analysis on test bed.
+python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_2 > retraining_analysis/run_2/training_logs/analysis-master.log 2>&1 [TODO]
+
+
+### Run: run_3
+# UNet training.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_3/unet/unet-100 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_3/trained_models/unet-100.hdf5 > retraining_analysis/run_3/training_logs/unet-100.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_3/unet/unet-200 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_3/trained_models/unet-200.hdf5 > retraining_analysis/run_3/training_logs/unet-200.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_3/unet/unet-300 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_3/trained_models/unet-300.hdf5 > retraining_analysis/run_3/training_logs/unet-300.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_3/unet/unet-400 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_3/trained_models/unet-400.hdf5 > retraining_analysis/run_3/training_logs/unet-400.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_unet.py --func train_unet --data-dir retraining_analysis/data-retraining-analysis/run_3/unet/unet-500 --batchnorm --val-split 0.1 --epochs 1000 --batch-size 4 --model-outfile retraining_analysis/run_3/trained_models/unet-500.hdf5 > retraining_analysis/run_3/training_logs/unet-500.log 2>&1
+
+# VGG training - RCP without CNP.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-100_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-100_RCP-0_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-100_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-200_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-200_RCP-0_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-200_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-300_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-300_RCP-0_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-300_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-400_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-400_RCP-0_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-400_RCP-0_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-0_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-0_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-0_CNP.log 2>&1
+
+# VGG training - RCP with CNP.
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-100_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-100_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-100_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-200_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-200_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-200_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-300_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-300_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-300_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-400_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-400_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-400_CNP.log 2>&1
+
+CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data-dir retraining_analysis/data-retraining-analysis/run_3/vgg/vgg-500_RCP-500_CNP --classes "amphipod,nonamphipod" --val-split 0.1 --epochs 300 --batch-size 8 --model-outfile retraining_analysis/run_3/trained_models/vgg-500_RCP-500_CNP.hdf5 > retraining_analysis/run_3/training_logs/vgg-500_RCP-500_CNP.log 2>&1
+
+
+### Running analysis on test bed.
+python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_3 > retraining_analysis/run_3/training_logs/analysis-master.log 2>&1 [TODO]
+
+
+
+
+
+# Checking trained models: update the run_<number> accordingly.
+# Checking val_mean_iou for train unet models:
+tail -1 retraining_analysis/run_3/training_logs/unet-100.log
+
+tail -1 retraining_analysis/run_3/training_logs/unet-200.log
+
+tail -1 retraining_analysis/run_3/training_logs/unet-300.log
+
+tail -1 retraining_analysis/run_3/training_logs/unet-400.log
+
+tail -1 retraining_analysis/run_3/training_logs/unet-500.log
+
+# Checking val_acc for vgg models:
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-100_RCP-0_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-200_RCP-0_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-300_RCP-0_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-400_RCP-0_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-0_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-100_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-200_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-300_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-400_CNP.log
+
+tail -1 retraining_analysis/run_3/training_logs/vgg-500_RCP-500_CNP.log
