@@ -280,7 +280,7 @@ CUDA_VISIBLE_DEVICES=0 python code/train_pipeline_cnn.py --func train_cnn --data
 
 
 ### Running analysis on test bed.
-python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_3 > retraining_analysis/run_3/training_logs/analysis-master.log 2>&1 [IN PROCESS]
+python /home/bhuvan/Projects/CamHD_object_identification/retraining_analysis/run_and_evaluate_configurations.py run_3 > retraining_analysis/run_3/training_logs/analysis-master.log 2>&1
 
 
 # Checking trained models: update the run_<number> accordingly.
